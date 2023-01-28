@@ -32,7 +32,7 @@ Requests/sec:  53927.49
 Transfer/sec:      2.67MB
 ```
 
-### MacBook Pro (`M1 Pro`)
+### MacBook Pro (`M1 Pro`, `helloworld`)
 ```
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
@@ -45,9 +45,9 @@ Requests/sec:  53927.49
 Transfer/sec:      2.67MB
 ```
 
-### Old Linux Machine (`Intel(R) Core(TM) i5-2500K CPU @ 3.30GHz`, no keep-alive)
+### Old Linux Machine (`Intel(R) Core(TM) i5-2500K CPU @ 3.30GHz`, `helloworld-nokeepalive`)
 ```
-$ wrk -t 64 -c 64 http://localhost:9999/testolope
+$ wrk -t 64 -c 64 -H "Connection: Close" http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
   64 threads and 64 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
