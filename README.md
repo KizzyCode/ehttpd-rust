@@ -20,7 +20,7 @@ The rationale behind the thread-based approach is that
 While the thread-based approach is not the most efficient out there, it's not that bad either. Some `wrk` benchmarks:
 
 ### MacBook Pro (`M1 Pro`, keep-alive)
-```
+```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
 64 threads and 64 connections
@@ -33,7 +33,7 @@ Transfer/sec:      2.67MB
 ```
 
 ### MacBook Pro (`M1 Pro`, `helloworld`)
-```
+```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
 64 threads and 64 connections
@@ -46,7 +46,7 @@ Transfer/sec:      2.67MB
 ```
 
 ### Old Linux Machine (`Intel(R) Core(TM) i5-2500K CPU @ 3.30GHz`, `helloworld-nokeepalive`)
-```
+```ignore
 $ wrk -t 64 -c 64 -H "Connection: Close" http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
   64 threads and 64 connections
