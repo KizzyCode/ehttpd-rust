@@ -8,12 +8,13 @@ pub mod utils;
 
 use crate::{
     error::Error,
+    http::body::Body,
     http::{Request, Response},
     threadpool::{Pool, StaticFn},
 };
 use std::{
     convert::Infallible,
-    io::BufReader,
+    io::{BufReader, Read},
     net::{Shutdown, TcpListener, TcpStream},
     sync::{
         mpsc::{self, Receiver, SyncSender},
@@ -23,10 +24,10 @@ use std::{
 };
 
 /// A connection context to pass to the thread pool
-struct ConnectionContext {
+struct ConnectionContext<T> {
     /// The connection handler
     #[allow(clippy::type_complexity)]
-    pub handler: Arc<Box<dyn Fn(&mut Request) -> Response + Send + Sync + 'static>>,
+    pub handler: Arc<Box<dyn Fn(&mut Request) -> Response<T> + Send + Sync + 'static>>,
     /// The TCP stream to handle
     pub stream: BufReader<TcpStream>,
     /// The connection queue for keep-alice TCP connections
@@ -51,17 +52,17 @@ struct ConnectionContext {
 ///                   |                v
 ///  close<----------------------thread-worker
 /// ```
-pub struct Server<const STACK_SIZE: usize = 65_536> {
+pub struct Server<T = Body, const STACK_SIZE: usize = 65_536> {
     /// The underlying socket
     socket: TcpListener,
     /// The thread pool to handle the incoming connections
-    threadpool: Pool<ConnectionContext, STACK_SIZE>,
+    threadpool: Pool<ConnectionContext<T>, STACK_SIZE>,
     /// The connection queue "seed" for pending TCP connections
     connection_queue_seed: SyncSender<BufReader<TcpStream>>,
     /// The keep-alive queue for pending TCP connections
     connection_queue: Receiver<BufReader<TcpStream>>,
 }
-impl<const STACK_SIZE: usize> Server<STACK_SIZE> {
+impl<T, const STACK_SIZE: usize> Server<T, STACK_SIZE> {
     /// Creates a new server bound on the given address
     pub fn new(address: &str, soft_limit: usize, hard_limit: usize) -> Result<Self, Error> {
         // Bind the socket and create threadpool and queues
@@ -75,11 +76,13 @@ impl<const STACK_SIZE: usize> Server<STACK_SIZE> {
     /// Starts the server
     pub fn exec<F>(self, callback: F) -> Result<Infallible, Error>
     where
-        F: Fn(&mut Request) -> Response + Send + Sync + 'static,
+        F: Fn(&mut Request) -> Response<T> + Send + Sync + 'static,
+        T: Read + 'static,
     {
         // Box the given callback to distribute it across worker threads
+        #[allow(clippy::type_complexity)]
         let callback = {
-            let boxed: Box<dyn Fn(&mut Request) -> Response + Send + Sync + 'static> = Box::new(callback);
+            let boxed: Box<dyn Fn(&mut Request) -> Response<T> + Send + Sync + 'static> = Box::new(callback);
             Arc::new(boxed)
         };
 
@@ -118,9 +121,15 @@ impl<const STACK_SIZE: usize> Server<STACK_SIZE> {
     }
 
     /// Calls a callback with the associated connection
-    fn callback_executor(context: ConnectionContext) {
+    fn callback_executor(context: ConnectionContext<T>)
+    where
+        T: Read,
+    {
         /// Tries to call a callback with the associated connection
-        fn try_(context: ConnectionContext) -> Result<(), Error> {
+        fn try_<T>(context: ConnectionContext<T>) -> Result<(), Error>
+        where
+            T: Read,
+        {
             // Destructure the context and read the request
             let ConnectionContext { handler, stream, connection_queue } = context;
             let Some(mut request) = Request::from_stream(stream)? else {
@@ -129,7 +138,7 @@ impl<const STACK_SIZE: usize> Server<STACK_SIZE> {
             };
 
             // Create the response and reacquire the stream
-            let mut response: Response = handler(&mut request);
+            let mut response: Response<T> = handler(&mut request);
             let mut stream = request.stream;
 
             // Write the response and reschedule the connection if it is still alive
