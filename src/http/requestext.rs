@@ -1,6 +1,7 @@
 //! Extension traits for `http::Request`
 
 use crate::{error::Error, http::Request, utils::rcvec::RcVec};
+use std::str;
 
 /// Some HTTP request extensions
 pub trait RequestExt {
@@ -31,7 +32,7 @@ impl<T, const HEADER_SIZE_MAX: usize> RequestExt for Request<T, HEADER_SIZE_MAX>
         };
 
         // Parse the field
-        let content_length_utf8 = std::str::from_utf8(content_length_raw)?;
+        let content_length_utf8 = str::from_utf8(content_length_raw)?;
         let content_length: u64 = content_length_utf8.parse()?;
         Ok(Some(content_length))
     }

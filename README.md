@@ -19,19 +19,6 @@ The rationale behind the thread-based approach is that
 ## Performance
 While the thread-based approach is not the most efficient out there, it's not that bad either. Some `wrk` benchmarks:
 
-### MacBook Pro (`M1 Pro`, keep-alive)
-```ignore
-$ wrk -t 64 -c 64 http://localhost:9999/testolope
-Running 10s test @ http://localhost:9999/testolope
-64 threads and 64 connections
-Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     1.19ms  254.31us   8.62ms   75.59%
-    Req/Sec   846.72     55.87     1.29k    72.11%
-544736 requests in 10.10s, 27.02MB read
-Requests/sec:  53927.49
-Transfer/sec:      2.67MB
-```
-
 ### MacBook Pro (`M1 Pro`, `helloworld`)
 ```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope

@@ -25,7 +25,6 @@ pub struct Request<T = BufReader<TcpStream>, const HEADER_SIZE_MAX: usize = 4096
     /// The range of the version part within the request line
     pub version: RcVec<u8>,
     /// The ranges of the key/value fields within the header
-    #[allow(clippy::type_complexity)]
     pub fields: Vec<(RcVec<u8>, RcVec<u8>)>,
     /// The connection stream
     pub stream: T,
