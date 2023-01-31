@@ -34,13 +34,23 @@ struct ConnectionContext {
 }
 
 /// A HTTP server
-/// 
+///
 /// ## Architecture
-/// The server creates a `TcpListener` bound to the given address. Then it creates a FIFO-queue to handle incoming 
+/// The server creates a `TcpListener` bound to the given address. Then it creates a FIFO-queue to handle incoming
 /// connections, and spawns an acceptor-thread that accepts all incoming connections and sends them to the FIFO-queue.
 /// The `exec`-function loops forever over the queued connections and sends them together with the callback into a
 /// thread-pool to process them. If a connection is kept-alive, it is requeued into the FIFO-queue after the response has
 /// been sent to the client to be reprocessed again.
+///
+///  ```ascii
+///  accept--->connection-queue--->threadpool
+///                   ^                |
+///                   |                |
+///               keep-alive           |
+///                   ^                |
+///                   |                v
+///  close<----------------------thread-worker
+/// ```
 pub struct Server<const STACK_SIZE: usize = 65_536> {
     /// The underlying socket
     socket: TcpListener,
