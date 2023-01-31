@@ -2,13 +2,10 @@
 
 use crate::{
     error::Error,
-    http::response::{Body, Response},
+    http::{body::Body, response::Response},
     utils::rcvec::RcVec,
 };
-use std::{
-    fs::File,
-    io::{BufReader, Cursor},
-};
+use std::{fs::File, io::Cursor};
 
 /// Some HTTP response extensions
 pub trait ResponseExt
@@ -100,7 +97,7 @@ impl ResponseBodyExt for Response<Body> {
 
         // Set the content length and file as body
         self.set_content_length(metadata.len());
-        self.body = Body::File(BufReader::new(file));
+        self.body = Body::File(file);
         Ok(())
     }
     fn set_body_data(&mut self, data: Vec<u8>) {
@@ -109,6 +106,6 @@ impl ResponseBodyExt for Response<Body> {
     }
     fn set_body_static(&mut self, data: &'static [u8]) {
         self.set_content_length(data.len() as u64);
-        self.body = Body::Static(data);
+        self.body = Body::Static(Cursor::new(data));
     }
 }

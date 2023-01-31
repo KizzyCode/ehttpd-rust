@@ -1,5 +1,6 @@
 //! A HTTP adapter
 
+pub mod body;
 pub mod request;
 pub mod requestext;
 pub mod response;

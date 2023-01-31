@@ -1,35 +1,7 @@
 //! A HTTP request
 
-use crate::{error::Error, utils::rcvec::RcVec};
-use std::{
-    fs::File,
-    io::{self, BufReader, Cursor, Read, Seek, Write},
-};
-
-/// A HTTP body
-pub enum Body {
-    /// An empty body
-    Empty,
-    /// A file to be served
-    File(BufReader<File>),
-    /// Some data to be served
-    Data(Cursor<Vec<u8>>),
-    /// Some static data to be served
-    Static(&'static [u8]),
-    /// Some other stuff to be served
-    Other(Box<dyn Read>),
-}
-impl Read for Body {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        match self {
-            Body::Empty => Ok(0),
-            Body::File(file) => file.read(buf),
-            Body::Data(data) => data.read(buf),
-            Body::Static(data) => data.read(buf),
-            Body::Other(other) => other.read(buf),
-        }
-    }
-}
+use crate::{error::Error, http::body::Body, utils::rcvec::RcVec};
+use std::io::{self, Cursor, Read, Seek, Write};
 
 /// A HTTP response
 #[derive(Debug)]
