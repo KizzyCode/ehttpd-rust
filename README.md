@@ -30,23 +30,22 @@ $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
   64 threads and 64 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     1.06ms    1.22ms  49.72ms   99.45%
-    Req/Sec     0.99k   144.55     1.45k    69.14%
-  637486 requests in 10.10s, 31.61MB read
-Requests/sec:  63105.97
-Transfer/sec:      3.13MB
+    Latency     0.98ms  346.32us  13.64ms   89.26%
+    Req/Sec     1.03k   125.94     1.38k    70.02%
+  662807 requests in 10.10s, 32.87MB read
+Requests/sec:  65622.88
+Transfer/sec:      3.25MB
 ```
 
 ### Old Linux Machine (`Intel(R) Core(TM) i5-2500K CPU @ 3.30GHz`, `helloworld-nokeepalive`)
 ```ignore
-$ wrk -t 64 -c 64 -H "Connection: Close" http://localhost:9999/testolope
+$ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
   64 threads and 64 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     5.24ms    8.11ms 192.14ms   96.63%
-    Req/Sec   226.54     64.93     1.34k    87.69%
-  144670 requests in 10.10s, 7.04MB read
-  Socket errors: connect 0, read 144670, write 0, timeout 0
-Requests/sec:  14326.33
-Transfer/sec:    713.64KB
+    Latency     2.31ms    1.31ms  79.98ms   97.48%
+    Req/Sec   419.80     73.74     2.03k    94.15%
+  268421 requests in 10.10s, 18.18MB read
+Requests/sec:  26579.74
+Transfer/sec:      1.80MB
 ```
