@@ -72,7 +72,7 @@ impl ResponseExt for Response {
         let value = value.into();
 
         // Remove any field with the same name and set the field
-        self.fields.retain(|(key, _)| !key.eq_ignore_ascii_case(key));
+        self.fields.retain(|(existing, _)| !key.eq_ignore_ascii_case(existing));
         self.fields.push((Data::Vec(key), Data::Vec(value)));
     }
     fn set_content_length(&mut self, len: u64) {
