@@ -1,38 +1,38 @@
 //! A HTTP request
 
-use crate::{error::Error, http::body::Body, utils::rcvec::RcVec};
-use std::io::{self, Cursor, Read, Seek, Write};
+use crate::{
+    bytes::{Data, Source},
+    error::Error,
+};
+use std::io::{self, Write};
 
 /// A HTTP response
 #[derive(Debug)]
-pub struct Response<T = Body, const HEADER_SIZE_MAX: usize = 4096> {
+pub struct Response<const HEADER_SIZE_MAX: usize = 4096> {
     /// The HTTP version
-    pub version: RcVec<u8>,
+    pub version: Data,
     /// The response status code
-    pub status: RcVec<u8>,
+    pub status: Data,
     /// The response status reason
-    pub reason: RcVec<u8>,
+    pub reason: Data,
     /// The response header fields
-    #[allow(clippy::type_complexity)]
-    pub fields: Vec<(RcVec<u8>, RcVec<u8>)>,
+    pub fields: Vec<(Data, Data)>,
     /// The response body
-    pub body: T,
+    pub body: Source,
 }
-impl<const HEADER_SIZE_MAX: usize> Response<Body, HEADER_SIZE_MAX> {
+impl<const HEADER_SIZE_MAX: usize> Response<HEADER_SIZE_MAX> {
     /// Creates a new HTTP response
-    pub fn new(version: RcVec<u8>, status: RcVec<u8>, reason: RcVec<u8>) -> Self {
-        Self { version, status, reason, fields: Vec::new(), body: Body::Empty }
+    pub fn new(version: Data, status: Data, reason: Data) -> Self {
+        Self { version, status, reason, fields: Vec::new(), body: Source::default() }
     }
-}
-impl<T, const HEADER_SIZE_MAX: usize> Response<T, HEADER_SIZE_MAX> {
+
     /// Writes the response to the given stream
-    pub fn to_stream<S>(&mut self, stream: &mut S) -> Result<(), Error>
+    pub fn to_stream<T>(&mut self, stream: &mut T) -> Result<(), Error>
     where
-        S: Write,
-        T: Read,
+        T: Write,
     {
         // Create a temporary buffer
-        let mut buf = Cursor::new([0; HEADER_SIZE_MAX]);
+        let mut buf = Vec::with_capacity(HEADER_SIZE_MAX);
 
         // Write start line
         buf.write_all(&self.version)?;
@@ -51,12 +51,8 @@ impl<T, const HEADER_SIZE_MAX: usize> Response<T, HEADER_SIZE_MAX> {
         }
         buf.write_all(b"\r\n")?;
 
-        // Write the header
-        let header_size = buf.stream_position()?;
-        let buf = buf.into_inner();
-        stream.write_all(&buf[..header_size as usize])?;
-
-        // Copy the buffer
+        // Write the header copy the buffer
+        stream.write_all(&buf)?;
         io::copy(&mut self.body, stream)?;
         Ok(())
     }
@@ -65,8 +61,8 @@ impl<T, const HEADER_SIZE_MAX: usize> Response<T, HEADER_SIZE_MAX> {
     pub fn has_connection_close(&self) -> bool {
         // Search for `Connection` header
         for (key, value) in &self.fields {
-            if key.eq_ignore_ascii_case(b"connection") {
-                return value.eq_ignore_ascii_case(b"close");
+            if key.eq_ignore_ascii_case(b"Connection") {
+                return value.eq_ignore_ascii_case(b"Close");
             }
         }
         false

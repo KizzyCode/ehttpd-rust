@@ -1,71 +1,99 @@
 //! Implements a threadpool
 
+mod counter;
 mod worker;
 
-use crate::{error, error::Error, log_error, log_info, threadpool::worker::Worker};
-use std::sync::{
-    mpsc::{self, Receiver, SyncSender},
-    Arc,
+use crate::{
+    error,
+    error::Error,
+    threadpool::{counter::Counter, worker::Worker},
 };
+use flume::{Receiver, Sender};
+use std::sync::Arc;
 
-/// A function pointer together with a context argument
-///
-/// This struct serves as a leightweight and limited replacement for boxed closures.
-#[derive(Debug, Clone, Copy)]
-pub struct StaticFn<T> {
-    /// The function to call
-    pub fn_: fn(T),
-    /// The context to pass to the function
-    pub context: T,
+/// A trait for functions etc. that can be executed/called, similar to `FnOnce()`
+pub trait Executable {
+    /// Executes `self`
+    fn exec(self);
 }
 
-/// A threadpool
-pub struct Pool<T, const STACK_SIZE: usize> {
-    /// The waiting workers
-    workers: Receiver<SyncSender<StaticFn<T>>>,
-    /// The "seed" of the `workers`-queue to pass it to new workers
-    workers_seed: SyncSender<SyncSender<StaticFn<T>>>,
-    /// The worker counter
-    worker_counter: Arc<()>,
-    /// The hard thread limit
-    hard_limit: usize,
+/// A threadpool with dynamic thread allocation and termination based on the current pressure
+#[derive(Debug)]
+pub struct Threadpool<T, const STACK_SIZE: usize> {
+    /// The job queue to send the data to the waiting workers
+    queue_tx: Sender<T>,
+    /// The receiving half of the job-queue that can be passed as "seed" to newly created workers
+    queue_rx_seed: Receiver<T>,
+    /// The hard worker limit
+    worker_max: usize,
+    /// The idle worker count
+    worker_idle: Arc<Counter>,
+    /// The, counter::Counter} total worker count
+    worker_total: Arc<Counter>,
 }
-impl<T, const STACK_SIZE: usize> Pool<T, STACK_SIZE> {
+impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     /// Creates a new thread pool
-    pub fn new(soft_limit: usize, hard_limit: usize) -> Self {
-        let (workers_seed, workers) = mpsc::sync_channel(soft_limit);
-        Self { workers, workers_seed, worker_counter: Arc::new(()), hard_limit }
+    pub fn new(worker_max: usize) -> Self
+    where
+        T: Executable + Send + 'static,
+    {
+        // Create instance
+        let (queue_tx, queue_rx_seed) = flume::bounded(worker_max);
+        let worker_idle = Counter::new(0);
+        let worker_total = Counter::new(0);
+        Self {
+            queue_tx,
+            queue_rx_seed,
+            worker_max,
+            worker_idle: Arc::new(worker_idle),
+            worker_total: Arc::new(worker_total),
+        }
     }
 
-    /// Schedules a job
-    pub fn schedule(&self, job: StaticFn<T>) -> Result<(), Error>
+    /// Dispatches a job into the threadpool
+    pub fn dispatch(&self, job: T) -> Result<(), Error>
     where
-        T: Send + 'static,
+        T: Executable + Send + 'static,
     {
-        // Get a free worker or spawn a new one if necessary
-        let worker = match self.workers.try_recv() {
-            Ok(worker) => worker,
-            Err(_) => self.spawn_worker()?,
-        };
+        // Spawn an additional worker if we are below the baseline
+        if self.worker_total.get() == 0 {
+            self.spawn()?;
+        }
 
-        // Send the job to the worker
-        worker.try_send(job).expect("available worker is unable to accept thread");
+        // Dispatch the job
+        if self.queue_tx.try_send(job).is_err() {
+            return Err(error!("Threadpool is congested"));
+        }
+
+        // Perform an opportunistic spawn if we have pending jobs, but ignore errors (e.g. if a resource limit is reached)
+        if self.queue_tx.len() > self.worker_idle.get() {
+            let _ = self.spawn();
+        }
         Ok(())
     }
 
     /// Spawns a new worker
-    fn spawn_worker(&self) -> Result<SyncSender<StaticFn<T>>, Error>
+    fn spawn(&self) -> Result<(), Error>
     where
-        T: Send + 'static,
+        T: Executable + Send + 'static,
     {
         // Check if we've reached the hard limit
-        if Arc::strong_count(&self.worker_counter) == self.hard_limit {
-            log_error!("Cannot spawn new worker because we have reached the hard limit");
-            return Err(error!("Thread pool is saturated"));
+        if self.worker_total.get() == self.worker_max {
+            return Err(error!("Reached worker thread limit"));
         }
 
         // Spawn the worker
-        log_info!("Spawning new worker");
-        Worker::<T, STACK_SIZE>::spawn(&self.workers_seed, &self.worker_counter)
+        Worker::<T, STACK_SIZE>::spawn(&self.queue_rx_seed, &self.worker_idle, &self.worker_total)
+    }
+}
+impl<T, const STACK_SIZE: usize> Clone for Threadpool<T, STACK_SIZE> {
+    fn clone(&self) -> Self {
+        Self {
+            queue_tx: self.queue_tx.clone(),
+            queue_rx_seed: self.queue_rx_seed.clone(),
+            worker_max: self.worker_max,
+            worker_idle: self.worker_idle.clone(),
+            worker_total: self.worker_total.clone(),
+        }
     }
 }

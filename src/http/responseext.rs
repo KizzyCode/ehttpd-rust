@@ -1,11 +1,10 @@
 //! Extension traits for `http::Response`
 
 use crate::{
+    bytes::{Data, Source},
     error::Error,
-    http::{body::Body, response::Response},
-    utils::rcvec::RcVec,
+    http::response::Response,
 };
-use std::{fs::File, io::Cursor};
 
 /// Some HTTP response extensions
 pub trait ResponseExt
@@ -32,16 +31,26 @@ where
     fn set_content_length(&mut self, len: u64);
     /// Sets the connection header to `Close`
     fn set_connection_close(&mut self);
+
+    /// Returns the content length if it is set
+    fn content_length(&self) -> Result<Option<u64>, Error>;
+
+    /// Sets the given file as body content
+    ///
+    /// Note: This also sets the `Content-Length` header if the body length can be determined automatically. Use
+    /// `self.content_length` to check if the content length has been set. However, unless you use an opaque data source,
+    /// you can assume that the body length can be determined automatically.
+    fn set_body(&mut self, body: Source) -> Result<(), Error>;
 }
-impl ResponseExt for Response<Body> {
-    fn new_status_reason<R>(status: u16, reason: R) -> Self
+impl ResponseExt for Response {
+    fn new_status_reason<T>(status: u16, reason: T) -> Self
     where
-        R: Into<Vec<u8>>,
+        T: Into<Vec<u8>>,
     {
         let version = b"HTTP/1.1".to_vec();
         let status = status.to_string().into_bytes();
         let reason = reason.into();
-        Self::new(RcVec::new(version), RcVec::new(status), RcVec::new(reason))
+        Self::new(Data::Vec(version), Data::Vec(status), Data::Vec(reason))
     }
     fn new_200_ok() -> Self {
         Self::new_status_reason(200, "OK")
@@ -64,7 +73,7 @@ impl ResponseExt for Response<Body> {
 
         // Remove any field with the same name and set the field
         self.fields.retain(|(key, _)| !key.eq_ignore_ascii_case(key));
-        self.fields.push((RcVec::new(key), RcVec::new(value)));
+        self.fields.push((Data::Vec(key), Data::Vec(value)));
     }
     fn set_content_length(&mut self, len: u64) {
         self.set_field("Content-Length", len.to_string())
@@ -72,40 +81,28 @@ impl ResponseExt for Response<Body> {
     fn set_connection_close(&mut self) {
         self.set_field("Connection", "Close")
     }
-}
 
-/// File-system related extensions for `http::Response`
-pub trait ResponseBodyExt {
-    /// Sets the given file as body content
-    ///
-    /// Note: This also sets the `Content-Length` header
-    fn set_body_file(&mut self, path: &str) -> Result<(), Error>;
-    /// Sets the given data as body contents
-    ///
-    /// Note: This also sets the `Content-Length` header
-    fn set_body_data(&mut self, data: Vec<u8>);
-    /// Sets the given static data as body contents
-    ///
-    /// Note: This also sets the `Content-Length` header
-    fn set_body_static(&mut self, data: &'static [u8]);
-}
-impl ResponseBodyExt for Response<Body> {
-    fn set_body_file(&mut self, path: &str) -> Result<(), Error> {
-        // Open the file and get it's size
-        let file = File::open(path)?;
-        let metadata = file.metadata()?;
+    fn content_length(&self) -> Result<Option<u64>, Error> {
+        // Search for `Content-Length` header
+        for (key, value) in &self.fields {
+            if key.eq_ignore_ascii_case(b"Content-Length") {
+                // Decode the value
+                let value = std::str::from_utf8(value)?;
+                let content_length: u64 = value.parse()?;
+                return Ok(Some(content_length));
+            }
+        }
+        Ok(None)
+    }
 
-        // Set the content length and file as body
-        self.set_content_length(metadata.len());
-        self.body = Body::File(file);
+    fn set_body(&mut self, mut body: Source) -> Result<(), Error> {
+        // Set the length if known
+        if let Some(len) = body.get_len()? {
+            self.set_content_length(len);
+        }
+
+        // Set the body
+        self.body = body;
         Ok(())
-    }
-    fn set_body_data(&mut self, data: Vec<u8>) {
-        self.set_content_length(data.len() as u64);
-        self.body = Body::Data(Cursor::new(data));
-    }
-    fn set_body_static(&mut self, data: &'static [u8]) {
-        self.set_content_length(data.len() as u64);
-        self.body = Body::Static(Cursor::new(data));
     }
 }

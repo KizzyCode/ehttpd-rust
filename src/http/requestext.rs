@@ -1,19 +1,19 @@
 //! Extension traits for `http::Request`
 
-use crate::{error::Error, http::Request, utils::rcvec::RcVec};
+use crate::{bytes::Data, error::Error, http::Request};
 use std::str;
 
 /// Some HTTP request extensions
 pub trait RequestExt {
     /// Gets the field with the given name (performs an ASCII-case-insensitve comparison)
-    fn field<T>(&self, name: T) -> Option<&RcVec<u8>>
+    fn field<T>(&self, name: T) -> Option<&Data>
     where
         T: AsRef<[u8]>;
     /// The request content length field if any
     fn content_length(&self) -> Result<Option<u64>, Error>;
 }
-impl<T, const HEADER_SIZE_MAX: usize> RequestExt for Request<T, HEADER_SIZE_MAX> {
-    fn field<N>(&self, name: N) -> Option<&RcVec<u8>>
+impl<'a, const HEADER_SIZE_MAX: usize> RequestExt for Request<'a, HEADER_SIZE_MAX> {
+    fn field<N>(&self, name: N) -> Option<&Data>
     where
         N: AsRef<[u8]>,
     {

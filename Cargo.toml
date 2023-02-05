@@ -1,6 +1,6 @@
 [package]
 name = "ehttpd"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 authors = ["KizzyCode Software Labs./Keziah Biermann <development@kizzycode.de>"]
 keywords = []
@@ -20,6 +20,7 @@ default = []
 
 
 [dependencies]
+flume = { version = "0.10.14", default-features = false }
 
 
 [profile.release]

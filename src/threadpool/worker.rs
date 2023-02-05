@@ -1,71 +1,61 @@
 //! A thread worker
 
-use crate::{error::Error, log_error, log_info, threadpool::StaticFn};
-use std::{
-    sync::{
-        mpsc::{self, Receiver, SyncSender},
-        Arc,
-    },
-    thread::Builder,
+use crate::{
+    error::Error,
+    threadpool::{counter::Counter, Executable},
 };
+use flume::Receiver;
+use std::{sync::Arc, thread::Builder, time::Duration};
 
 /// A thread
-pub struct Worker<T, const STACK_SIZE: usize> {
-    /// The incoming job
-    job: Receiver<StaticFn<T>>,
-    /// The "seed" of the `job`-queue to reinsert it into the threadpool
-    job_seed: SyncSender<StaticFn<T>>,
-    /// The owning threadpool
-    threadpool: SyncSender<SyncSender<StaticFn<T>>>,
-    /// The worker counter
-    _worker_counter: Arc<()>,
+pub struct Worker<T, const STACK_SIZE: usize, const TIMEOUT: u64 = 5> {
+    /// The receiving half of the job-queue
+    queue_rx: Receiver<T>,
+    /// The busy worker count
+    worker_idle: Arc<Counter>,
+    /// The total worker count
+    worker_total: Arc<Counter>,
 }
-impl<T, const STACK_SIZE: usize> Worker<T, STACK_SIZE> {
+impl<T, const STACK_SIZE: usize, const TIMEOUT: u64> Worker<T, STACK_SIZE, TIMEOUT> {
+    /// The timeout after which an idle worker should terminate
+    const TIMEOUT: Duration = Duration::from_secs(TIMEOUT);
+
     /// Spawns a new worker and returns it's job queue
-    pub fn spawn(
-        threadpool: &SyncSender<SyncSender<StaticFn<T>>>,
-        worker_counter: &Arc<()>,
-    ) -> Result<SyncSender<StaticFn<T>>, Error>
+    pub fn spawn(queue_rx: &Receiver<T>, worker_idle: &Arc<Counter>, worker_total: &Arc<Counter>) -> Result<(), Error>
     where
-        T: Send + 'static,
+        T: Executable + Send + 'static,
     {
-        // Create the job queue and init self
-        let (job_seed, job) = mpsc::sync_channel(1);
-        let this = Self {
-            job,
-            job_seed: job_seed.clone(),
-            threadpool: threadpool.clone(),
-            _worker_counter: worker_counter.clone(),
-        };
+        // Create the worker
+        let this =
+            Self { queue_rx: queue_rx.clone(), worker_idle: worker_idle.clone(), worker_total: worker_total.clone() };
 
         // Spawn the thread
         let builder = Builder::new().stack_size(STACK_SIZE).name("threadpool worker thread".to_string());
-        if let Err(e) = builder.spawn(|| this.runloop()) {
-            log_error!("Failed to spawn new worker thread");
-            return Err(e.into());
-        };
-        Ok(job_seed)
+        builder.spawn(|| this.runloop())?;
+        Ok(())
     }
 
     /// The worker runloop
-    fn runloop(self) {
-        loop {
-            // Read the job from the queue
-            let Ok(job) = self.job.recv() else {
-                log_info!("Unable to receive next job, stopping worker thread");
-                return;
+    fn runloop(self)
+    where
+        T: Executable,
+    {
+        // Increment the total and idle counter as long as the runloop runs
+        let _worker_total_guard = self.worker_total.increment_tmp();
+        let _worker_idle_guard = self.worker_idle.increment_tmp();
+
+        // Enter the runloop
+        'runloop: loop {
+            // Mark use as idle and wait for the next job
+            let job = match self.queue_rx.recv_timeout(Self::TIMEOUT) {
+                Ok(job) => job,
+                Err(_) if self.worker_total.get() < 2 => continue 'runloop,
+                Err(_) => break 'runloop,
             };
 
-            // Execute job
-            let StaticFn { fn_, context } = job;
-            fn_(context);
-
-            // Mark us as ready to receive jobs
-            let jobs_seed = self.job_seed.clone();
-            if self.threadpool.try_send(jobs_seed).is_err() {
-                log_info!("Unable to requeue worker, stopping worker thread");
-                return;
-            }
+            // Temporary decrement the idle counter and execute the job
+            let _worker_idle_guard = self.worker_idle.decrement_tmp();
+            job.exec();
         }
     }
 }

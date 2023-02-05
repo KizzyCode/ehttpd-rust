@@ -1,26 +1,18 @@
 use ehttpd::{
-    http::{
-        request::Request,
-        response::Response,
-        responseext::{ResponseBodyExt, ResponseExt},
-    },
-    log::{self, WARN},
+    bytes::Source,
+    http::{Request, Response, ResponseExt},
     Server,
 };
 
 fn main() {
-    // Log everything
-    log::set_level(WARN);
-
     // Define our request handler
-    let request_handler = |_: &mut Request| {
+    let request_handler = |_: Request| {
         let mut response = Response::new_200_ok();
-        response.set_body_static(b"Hello world\r\n");
+        response.set_body(Source::from(b"Hello world\r\n")).expect("failed to set body");
         response
     };
 
-    // Create a server that listens at [::]:9999, keeps up to 64 worker threads *permanently* and can spawn up to 1024
-    // temporary worker threads under high load
-    let server: Server = Server::new("[::]:9999", 64, 4096).expect("failed to start server");
-    server.exec(request_handler).expect("server failed");
+    // Create a server that listens at [::]:9999 with up to 2048 worker threads under load if necessary
+    let server: Server = Server::new(2048, request_handler);
+    server.accept("[::]:9999").expect("server failed");
 }
