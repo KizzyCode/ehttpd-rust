@@ -82,15 +82,10 @@ impl<const STACK_SIZE: usize> Server<STACK_SIZE> {
     pub fn dispatch(&self, connection: TcpStream) -> Result<(), Error> {
         // Split the connection into RX and TX
         let tx = connection.try_clone()?;
-        let rx = BufReader::new(connection);
+        let rx = Source::from_other(BufReader::new(connection));
 
         // Create and dispatch the job
-        let job = ConnectionJob {
-            handler: self.handler.clone(),
-            rx: Source::BufferedTcpStream(rx),
-            tx,
-            threadpool: self.threadpool.clone(),
-        };
+        let job = ConnectionJob { handler: self.handler.clone(), rx, tx, threadpool: self.threadpool.clone() };
         self.threadpool.dispatch(job)
     }
 

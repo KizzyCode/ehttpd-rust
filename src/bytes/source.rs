@@ -1,16 +1,38 @@
 //! A readable data source
 
-use crate::{bytes::data::Data, error::Error};
+use crate::bytes::data::Data;
 use std::{
-    any::Any,
-    cmp,
     fmt::{Debug, Formatter},
     fs::File,
-    io::{BufReader, Cursor, Read, Seek, SeekFrom},
+    io::{Cursor, Read},
     net::TcpStream,
 };
 
-/// A stack-allocating type-abstract readable data source
+/// An umbrella trait to combine `Read`, `Debug` and `Send` which are required for `Source`
+pub trait AnySource {
+    /// `self` as implementor of `Read`
+    fn as_read_mut(&mut self) -> &mut dyn Read;
+    /// `self` as implementor of `Debug`
+    fn as_debug(&self) -> &dyn Debug;
+}
+impl<T> AnySource for T
+where
+    T: Read + Debug + Send,
+{
+    fn as_read_mut(&mut self) -> &mut dyn Read {
+        self
+    }
+    fn as_debug(&self) -> &dyn Debug {
+        self
+    }
+}
+
+/// A type-abstract data source
+///
+/// # Rationale
+/// The idea behind this type is to provide some dynamic polymorphism, but with some "fast-paths" for common types to
+/// avoid the overhead of boxing and vtable-lookup (while the latter is probable negligible, the former may be significant
+/// overhead if all you want is to read from some static memory).
 #[non_exhaustive]
 pub enum Source {
     /// An empty source
@@ -19,111 +41,19 @@ pub enum Source {
     Data(Cursor<Data>),
     /// A file
     File(File),
-    /// A buffered file
-    BufferedFile(BufReader<File>),
     /// A TCP stream
     TcpStream(TcpStream),
-    /// A buffered TCP stream
-    BufferedTcpStream(BufReader<TcpStream>),
     /// A catch-all/opaque variant for all types that cannot be covered by the enum's specific variants
-    ///
-    /// # Note
-    /// In general, this variant should not be created "by hand"; use `Self::new_other` instead
-    Other {
-        /// The underlying data backing
-        data: Box<dyn Any + Send>,
-        /// A pointer to type-specific implementation to recover the original type and coerce it to `&mut dyn Read`
-        #[doc(hidden)]
-        as_read_mut: fn(&mut Box<dyn Any + Send>) -> &mut dyn Read,
-        /// A pointer to type-specific implementation to recover the original type and coerce it to `&dyn Debug`
-        #[doc(hidden)]
-        as_debug: fn(&Box<dyn Any + Send>) -> &dyn Debug,
-    },
+    Other(Box<dyn AnySource + Send>),
 }
 impl Source {
     /// Creates a new catch-all/opaque variant from a typed object by moving it to the heap
-    pub fn new_other<T>(typed: T) -> Self
+    pub fn from_other<T>(typed: T) -> Self
     where
-        T: Read + Debug + Send + 'static,
+        T: AnySource + Send + 'static,
     {
-        /// The specific implementation to recover `&dyn Any` as `&T` and coerce it to `&dyn AsRef<[u8]>`
-        fn as_read_mut<T>(untyped: &mut Box<dyn Any + Send>) -> &mut dyn Read
-        where
-            T: Read + 'static,
-        {
-            let typed: &mut T = untyped.downcast_mut().expect("failed to recover type");
-            typed
-        }
-        /// The specific implementation to recover `&dyn Any` as `&T` and coerce it to `&dyn Debug`
-        fn as_debug<T>(untyped: &Box<dyn Any + Send>) -> &dyn Debug
-        where
-            T: Debug + 'static,
-        {
-            let typed: &T = untyped.downcast_ref().expect("failed to recover type");
-            typed
-        }
-
-        // Box the value and init self
-        let untyped: Box<dyn Any + Send> = Box::new(typed);
-        Self::Other { data: untyped, as_read_mut: as_read_mut::<T>, as_debug: as_debug::<T> }
-    }
-
-    /// Skips the given amount of bytes by reading and discarding them
-    ///
-    /// # Note
-    /// This function should only be used for non-seekable sources since reading all the bytes is ususally much less
-    /// efficient than just seeking
-    pub fn skip(&mut self, mut skip: usize) -> std::io::Result<()> {
-        // A 16k buffer for efficient skipping
-        let mut buf = vec![0; 16 * 1024];
-        while skip > 0 {
-            // Read/discard bytes
-            let to_read = cmp::min(skip, buf.len());
-            self.read_exact(&mut buf[..to_read])?;
-            skip -= to_read;
-        }
-        Ok(())
-    }
-
-    /// Tries to get the data source length if possible
-    pub fn get_len(&mut self) -> Result<Option<u64>, Error> {
-        /// Returns the length for `Seek`able types
-        fn seek_remaining<T>(seeker: &mut T) -> Result<u64, Error>
-        where
-            T: Seek,
-        {
-            // Get the current position and the total length
-            #[allow(clippy::seek_from_current)]
-            let pos = seeker.seek(SeekFrom::Current(0))?;
-            let len = seeker.seek(SeekFrom::End(0))?;
-
-            // Recover the original position
-            if pos != len {
-                seeker.seek(SeekFrom::Start(pos))?;
-            }
-            Ok(len - pos)
-        }
-
-        // Get the remaining length
-        match self {
-            Source::Empty => Ok(Some(0)),
-            Source::Data(data) => {
-                let remaining = seek_remaining(data)?;
-                Ok(Some(remaining))
-            }
-            Source::File(file) => {
-                let remaining = seek_remaining(file)?;
-                Ok(Some(remaining))
-            }
-            Source::BufferedFile(buffered_file) => {
-                let remaining = seek_remaining(buffered_file)?;
-                let buffered = buffered_file.buffer().len() as u64;
-                Ok(Some(buffered + remaining))
-            }
-            Source::TcpStream(_) => Ok(None),
-            Source::BufferedTcpStream(_) => Ok(None),
-            Source::Other { .. } => Ok(None),
-        }
+        let boxed = Box::new(typed);
+        Self::Other(boxed)
     }
 }
 impl Read for Source {
@@ -132,10 +62,8 @@ impl Read for Source {
             Source::Empty => Ok(0),
             Source::Data(data) => data.read(buf),
             Source::File(file) => file.read(buf),
-            Source::BufferedFile(buffered_file) => buffered_file.read(buf),
             Source::TcpStream(tcp_stream) => tcp_stream.read(buf),
-            Source::BufferedTcpStream(buffered_tcp_stream) => buffered_tcp_stream.read(buf),
-            Source::Other { data, as_read_mut, .. } => as_read_mut(data).read(buf),
+            Source::Other(other) => other.as_read_mut().read(buf),
         }
     }
 }
@@ -145,10 +73,8 @@ impl Debug for Source {
             Self::Empty => f.debug_tuple("Empty").finish(),
             Self::Data(arg0) => f.debug_tuple("Data").field(arg0).finish(),
             Self::File(arg0) => f.debug_tuple("File").field(arg0).finish(),
-            Self::BufferedFile(arg0) => f.debug_tuple("BufferedFile").field(arg0).finish(),
             Self::TcpStream(arg0) => f.debug_tuple("TcpStream").field(arg0).finish(),
-            Self::BufferedTcpStream(arg0) => f.debug_tuple("BufferedTcpStream").field(arg0).finish(),
-            Self::Other { data, as_debug, .. } => f.debug_struct("Other").field("data", as_debug(data)).finish(),
+            Self::Other(other) => f.debug_tuple("Other").field(other.as_debug()).finish(),
         }
     }
 }
@@ -197,18 +123,8 @@ impl From<File> for Source {
         Self::File(value)
     }
 }
-impl From<BufReader<File>> for Source {
-    fn from(value: BufReader<File>) -> Self {
-        Self::BufferedFile(value)
-    }
-}
 impl From<TcpStream> for Source {
     fn from(value: TcpStream) -> Self {
         Self::TcpStream(value)
-    }
-}
-impl From<BufReader<TcpStream>> for Source {
-    fn from(value: BufReader<TcpStream>) -> Self {
-        Self::BufferedTcpStream(value)
     }
 }
