@@ -65,6 +65,6 @@ fn other() {
 
     // Test the bytes
     let string_data = StringData { string: "Testolope".to_string() };
-    let bytes = Data::new_other(string_data);
+    let bytes = Data::from_other(string_data);
     test_data(bytes, b"Testolope", r#"Other { data: StringData { string: "Testolope" }, range: 0..9 }"#)
 }
