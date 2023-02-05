@@ -42,7 +42,7 @@ where
     /// you can assume that the body length can be determined automatically.
     fn set_body(&mut self, body: Source) -> Result<(), Error>;
 }
-impl ResponseExt for Response {
+impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
     fn new_status_reason<T>(status: u16, reason: T) -> Self
     where
         T: Into<Vec<u8>>,

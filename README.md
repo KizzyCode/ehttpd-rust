@@ -4,7 +4,7 @@
 [![docs.rs](https://docs.rs/ehttpd/badge.svg)](https://docs.rs/ehttpd)
 [![crates.io](https://img.shields.io/crates/v/ehttpd.svg)](https://crates.io/crates/ehttpd)
 [![Download numbers](https://img.shields.io/crates/d/ehttpd.svg)](https://crates.io/crates/ehttpd)
-[![dependency status](https://deps.rs/crate/ehttpd/0.3.0/status.svg)](https://deps.rs/crate/ehttpd/0.3.0)
+[![dependency status](https://deps.rs/crate/ehttpd/0.3.1/status.svg)](https://deps.rs/crate/ehttpd/0.3.1)
 
 
 # `ehttpd`
