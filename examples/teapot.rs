@@ -1,5 +1,4 @@
 use ehttpd::{
-    bytes::Source,
     http::{Request, Response, ResponseExt},
     Server,
 };
@@ -14,7 +13,7 @@ fn main() {
 
         // Send the response
         let mut response = Response::new_status_reason(418, "I'm a teapot");
-        response.set_body(Source::from(message)).expect("failed to set body");
+        response.set_body_data(message);
         response
     };
 

@@ -1,5 +1,4 @@
 use ehttpd::{
-    bytes::Source,
     http::{Request, Response, ResponseExt},
     Server,
 };
@@ -8,7 +7,7 @@ fn main() {
     // Define our request handler
     let request_handler = |_: Request| {
         let mut response = Response::new_200_ok();
-        response.set_body(Source::from(b"Hello World")).expect("failed to get set body");
+        response.set_body_data(b"Hello World\r\n");
         response.set_connection_close();
         response
     };
