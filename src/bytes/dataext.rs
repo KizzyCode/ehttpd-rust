@@ -1,6 +1,6 @@
 //! Some useful extensions for the `Data` type
 
-use crate::bytes::data::Data;
+use crate::bytes::Data;
 use std::ops::{Bound, RangeBounds};
 
 /// An extension trait to create lifetime-independent subdata "slices" over `self`
@@ -33,18 +33,18 @@ impl DataSliceExt for Data {
         // Compute the bounds
         let start = match range.start_bound() {
             Bound::Included(start) => *start,
-            Bound::Excluded(before_start) => *before_start + 1,
+            Bound::Excluded(_) => unreachable!("excluded bounds are invalid for range starts"),
             Bound::Unbounded => 0,
         };
         let end = match range.end_bound() {
-            Bound::Included(before_end) => *before_end + 1,
+            Bound::Included(before_end) => before_end.saturating_add(1),
             Bound::Excluded(end) => *end,
             Bound::Unbounded => self.len(),
         };
 
         // Make the bounds relative to our current slice and validate them
-        let start = current_range.start + start;
-        let end = current_range.start + end;
+        let start = current_range.start.checked_add(start)?;
+        let end = current_range.start.checked_add(end)?;
         if start > current_range.end || end > current_range.end {
             return None;
         }
@@ -55,13 +55,7 @@ impl DataSliceExt for Data {
             Data::Vec(vec) => Data::Vec(vec[start..end].to_vec()),
             Data::Static(static_) => Data::Static(&static_[start..end]),
             Data::ArcVec { backing, .. } => Data::ArcVec { backing: backing.clone(), range: start..end },
-            Data::Other { data, as_ref_u8, as_debug, do_clone, .. } => Data::Other {
-                data: do_clone(data),
-                range: start..end,
-                as_ref_u8: *as_ref_u8,
-                as_debug: *as_debug,
-                do_clone: *do_clone,
-            },
+            Data::Other { data, .. } => Data::Other { data: data.opaque_clone(), range: start..end },
         };
         Some(clone)
     }
