@@ -5,6 +5,11 @@ use crate::{
     error::Error,
     http::response::Response,
 };
+use std::{
+    borrow::BorrowMut,
+    fs::File,
+    io::{Seek, SeekFrom},
+};
 
 /// Some HTTP response extensions
 pub trait ResponseExt
@@ -14,7 +19,7 @@ where
     /// Creates a new HTTP response with the given status code and reason
     fn new_status_reason<T>(status: u16, reason: T) -> Self
     where
-        T: Into<Vec<u8>>;
+        T: Into<Data>;
     /// Creates a new `200 OK` HTTP response
     fn new_200_ok() -> Self;
     /// Creates a new `403 Forbidden` HTTP response
@@ -25,8 +30,8 @@ where
     /// Sets the field with the given name (performs an ASCII-case-insensitve comparison for replacement)
     fn set_field<K, V>(&mut self, key: K, value: V)
     where
-        K: Into<Vec<u8>>,
-        V: Into<Vec<u8>>;
+        K: Into<Data>,
+        V: Into<Data>;
     /// Sets the body content length
     fn set_content_length(&mut self, len: u64);
     /// Sets the connection header to `Close`
@@ -37,20 +42,31 @@ where
 
     /// Sets the given file as body content
     ///
-    /// Note: This also sets the `Content-Length` header if the body length can be determined automatically. Use
-    /// `self.content_length` to check if the content length has been set. However, unless you use an opaque data source,
-    /// you can assume that the body length can be determined automatically.
-    fn set_body(&mut self, body: Source) -> Result<(), Error>;
+    /// # Note
+    /// This function **DOES NOT** set the "Content-Length" header, it's up to you to set it manually
+    fn set_body(&mut self, body: Source);
+    /// Sets the given data as body content and updates the `Content-Length` header accordingly
+    fn set_body_data<T>(&mut self, data: T)
+    where
+        T: Into<Data>;
+    /// Sets the given file as body content and updates the `Content-Length` header accordingly
+    ///
+    /// # Note
+    /// Please note that this function also respects the file's current seek offset; so if you are at offset `7` out of
+    /// `15`, the content length is set to `8`.
+    fn set_body_file<T>(&mut self, file: T) -> Result<(), Error>
+    where
+        T: Into<Source> + BorrowMut<File>;
 }
 impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
     fn new_status_reason<T>(status: u16, reason: T) -> Self
     where
-        T: Into<Vec<u8>>,
+        T: Into<Data>,
     {
-        let version = b"HTTP/1.1".to_vec();
-        let status = status.to_string().into_bytes();
+        let version = Data::from(b"HTTP/1.1");
+        let status = Data::from(status.to_string());
         let reason = reason.into();
-        Self::new(Data::Vec(version), Data::Vec(status), Data::Vec(reason))
+        Self::new(version, status, reason)
     }
     fn new_200_ok() -> Self {
         Self::new_status_reason(200, "OK")
@@ -64,8 +80,8 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
 
     fn set_field<K, V>(&mut self, key: K, value: V)
     where
-        K: Into<Vec<u8>>,
-        V: Into<Vec<u8>>,
+        K: Into<Data>,
+        V: Into<Data>,
     {
         // Convert the field into vecs
         let key = key.into();
@@ -73,7 +89,7 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
 
         // Remove any field with the same name and set the field
         self.fields.retain(|(existing, _)| !key.eq_ignore_ascii_case(existing));
-        self.fields.push((Data::Vec(key), Data::Vec(value)));
+        self.fields.push((key, value));
     }
     fn set_content_length(&mut self, len: u64) {
         self.set_field("Content-Length", len.to_string())
@@ -95,14 +111,36 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
         Ok(None)
     }
 
-    fn set_body(&mut self, mut body: Source) -> Result<(), Error> {
-        // Set the length if known
-        if let Some(len) = body.get_len()? {
-            self.set_content_length(len);
+    fn set_body(&mut self, body: Source) {
+        self.body = body;
+    }
+    fn set_body_data<T>(&mut self, data: T)
+    where
+        T: Into<Data>,
+    {
+        let data = data.into();
+        self.set_content_length(data.len() as u64);
+        self.set_body(Source::from(data))
+    }
+    fn set_body_file<T>(&mut self, mut file: T) -> Result<(), Error>
+    where
+        T: Into<Source> + BorrowMut<File>,
+    {
+        // Get the current position and the total length
+        let file_real = file.borrow_mut();
+        #[allow(clippy::seek_from_current)]
+        let pos = file_real.seek(SeekFrom::Current(0))?;
+        let len = file_real.seek(SeekFrom::End(0))?;
+
+        // Recover the original position and set the length
+        if pos != len {
+            file_real.seek(SeekFrom::Start(pos))?;
         }
+        self.set_content_length(len - pos);
 
         // Set the body
-        self.body = body;
+        let file = file.into();
+        self.set_body(file);
         Ok(())
     }
 }
