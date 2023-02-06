@@ -9,6 +9,7 @@ use std::{
     borrow::BorrowMut,
     fs::File,
     io::{Seek, SeekFrom},
+    str,
 };
 
 /// Some HTTP response extensions
@@ -103,7 +104,7 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
         for (key, value) in &self.fields {
             if key.eq_ignore_ascii_case(b"Content-Length") {
                 // Decode the value
-                let value = std::str::from_utf8(value)?;
+                let value = str::from_utf8(value)?;
                 let content_length: u64 = value.parse()?;
                 return Ok(Some(content_length));
             }
