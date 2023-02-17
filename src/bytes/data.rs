@@ -132,7 +132,7 @@ impl Display for Data {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         for byte in self.as_ref() {
             // Check if the byte is printable
-            let printable = byte.is_ascii_alphanumeric() || byte.eq(&b' ');
+            let printable = byte.is_ascii_alphanumeric() || *byte == b' ';
             match printable {
                 true => f.write_char(*byte as char)?,
                 false => write!(f, r#"\x{:02x}"#, *byte)?,
