@@ -23,10 +23,28 @@ where
         T: Into<Data>;
     /// Creates a new `200 OK` HTTP response
     fn new_200_ok() -> Self;
+
+    /// Creates a new `307 Temporary Redirect` HTTP response with the `Location`-header field set to the given location
+    fn new_307_temporaryredirect<T>(location: T) -> Self
+    where
+        T: Into<Data>;
+
+    /// Creates a new `401 Unauthorized` HTTP response with the `WWW-Authenticate`-header field set to the given
+    /// requirement
+    fn new_401_unauthorized<T>(requirement: T) -> Self
+    where
+        T: Into<Data>;
     /// Creates a new `403 Forbidden` HTTP response
     fn new_403_forbidden() -> Self;
     /// Creates a new `404 Not Found` HTTP response
     fn new_404_notfound() -> Self;
+    /// Creates a new `413 Payload Too Large` HTTP response
+    fn new_413_payloadtoolarge() -> Self;
+    /// Creates a new `416 Range Not Satisfiable` HTTP response
+    fn new_416_rangenotsatisfiable() -> Self;
+
+    /// Creates a new `500 Internal Server Error` HTTP response
+    fn new_500_internalservererror() -> Self;
 
     /// Sets the field with the given name (performs an ASCII-case-insensitve comparison for replacement)
     fn set_field<K, V>(&mut self, key: K, value: V)
@@ -58,6 +76,10 @@ where
     fn set_body_file<T>(&mut self, file: T) -> Result<(), Error>
     where
         T: Into<Source> + BorrowMut<File>;
+
+    /// Turns the current `GET`-response into a `HEAD`-response by discarding the body without modifying content length
+    /// etc.
+    fn make_head(&mut self);
 }
 impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
     fn new_status_reason<T>(status: u16, reason: T) -> Self
@@ -72,11 +94,40 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
     fn new_200_ok() -> Self {
         Self::new_status_reason(200, "OK")
     }
+
+    fn new_307_temporaryredirect<T>(location: T) -> Self
+    where
+        T: Into<Data>,
+    {
+        let mut this = Self::new_status_reason(307, "Temporary Redirect");
+        this.set_field("Location", location);
+        this
+    }
+
+    fn new_401_unauthorized<T>(requirement: T) -> Self
+    where
+        T: Into<Data>,
+    {
+        let mut this = Self::new_status_reason(401, "Unauthorized");
+        this.set_field("WWW-Authenticate", requirement);
+        this
+    }
+
     fn new_403_forbidden() -> Self {
         Self::new_status_reason(403, "Forbidden")
     }
     fn new_404_notfound() -> Self {
         Self::new_status_reason(404, "Not Found")
+    }
+    fn new_413_payloadtoolarge() -> Self {
+        Self::new_status_reason(413, "Payload Too Large")
+    }
+    fn new_416_rangenotsatisfiable() -> Self {
+        Self::new_status_reason(416, "Range Not Satisfiable")
+    }
+
+    fn new_500_internalservererror() -> Self {
+        Self::new_status_reason(500, "Internal Server Error")
     }
 
     fn set_field<K, V>(&mut self, key: K, value: V)
@@ -143,5 +194,9 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
         let file = file.into();
         self.set_body(file);
         Ok(())
+    }
+
+    fn make_head(&mut self) {
+        self.body = Source::Empty;
     }
 }
