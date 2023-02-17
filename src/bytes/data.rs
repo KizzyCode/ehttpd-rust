@@ -141,6 +141,21 @@ impl Display for Data {
         Ok(())
     }
 }
+impl PartialEq<[u8]> for Data {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.as_ref().eq(other)
+    }
+}
+impl<const SIZE: usize> PartialEq<[u8; SIZE]> for Data {
+    fn eq(&self, other: &[u8; SIZE]) -> bool {
+        self.as_ref().eq(other)
+    }
+}
+impl PartialEq<str> for Data {
+    fn eq(&self, other: &str) -> bool {
+        self.as_ref().eq(other.as_bytes())
+    }
+}
 impl Default for Data {
     fn default() -> Self {
         Self::Empty
