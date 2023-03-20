@@ -1,10 +1,13 @@
 //! Extension traits for `http::Request`
 
 use crate::{bytes::Data, error::Error, http::Request};
-use std::str;
+use std::{path::Path, str};
 
 /// Some HTTP request extensions
 pub trait RequestExt {
+    /// Gets the request target as path
+    fn target_path(&self) -> Option<&Path>;
+
     /// Gets the field with the given name (performs an ASCII-case-insensitve comparison)
     fn field<T>(&self, name: T) -> Option<&Data>
     where
@@ -13,6 +16,21 @@ pub trait RequestExt {
     fn content_length(&self) -> Result<Option<u64>, Error>;
 }
 impl<'a, const HEADER_SIZE_MAX: usize> RequestExt for Request<'a, HEADER_SIZE_MAX> {
+    #[cfg(target_family = "unix")]
+    fn target_path(&self) -> Option<&Path> {
+        use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+
+        // Create the path directly without going via `str`
+        let target = OsStr::from_bytes(&self.target);
+        Some(Path::new(target))
+    }
+    #[cfg(not(any(target_family = "unix")))]
+    fn target_path(&self) -> Option<&Path> {
+        // Convert the target to UTF-8 and return it as string
+        let target = str::from_utf8(&self.target).ok()?;
+        Some(Path::new(target))
+    }
+
     fn field<N>(&self, name: N) -> Option<&Data>
     where
         N: AsRef<[u8]>,
