@@ -38,6 +38,8 @@ where
     fn new_403_forbidden() -> Self;
     /// Creates a new `404 Not Found` HTTP response
     fn new_404_notfound() -> Self;
+    /// Creates a new `405 Method Not Allowed` HTTP response
+    fn new_405_methodnotallowed() -> Self;
     /// Creates a new `413 Payload Too Large` HTTP response
     fn new_413_payloadtoolarge() -> Self;
     /// Creates a new `416 Range Not Satisfiable` HTTP response
@@ -118,6 +120,9 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
     }
     fn new_404_notfound() -> Self {
         Self::new_status_reason(404, "Not Found")
+    }
+    fn new_405_methodnotallowed() -> Self {
+        Self::new_status_reason(405, "Method Not Allowed")
     }
     fn new_413_payloadtoolarge() -> Self {
         Self::new_status_reason(413, "Payload Too Large")
