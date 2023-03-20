@@ -6,6 +6,10 @@ use std::{path::Path, str};
 /// Some HTTP request extensions
 pub trait RequestExt {
     /// Gets the request target as path
+    ///
+    /// # Important
+    /// On non-unix platforms, this function uses a `str` as intermediate representation, so the path must be valid UTF-8.
+    /// If this might be a problem, you should use the raw target field directly.
     fn target_path(&self) -> Option<&Path>;
 
     /// Gets the field with the given name (performs an ASCII-case-insensitve comparison)
