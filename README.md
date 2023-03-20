@@ -14,11 +14,12 @@ Welcome to `ehttpd` 🎉
 
 
 ## Thread-based design
-The rationale behind the thread-based approach is that it is much easier to implement than `async/await`, subsequently requires less codes, and is – in theory – less error prone.
+The rationale behind the thread-based approach is that it is much easier to implement than `async/await`, subsequently
+requires less code, and is – in theory – less error prone.
 
 Furthermore, it also simplifies application development since the developer cannot accidentally stall the entire runtime
-with a single blocking call – via the OS' scheduler, threads offer much strong concurrency isolation guarantees, which
-in most environments can even be `nice`d or tweaked if appropriate.
+with a single blocking call – due to the OS-scheduler, threads offer much stronger concurrency isolation guarantees
+(which can even be `nice`d or tweaked in most environments if desired).
 
 
 ## Performance
