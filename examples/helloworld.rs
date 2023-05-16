@@ -12,6 +12,6 @@ fn main() {
     };
 
     // Create a server that listens at [::]:9999 with up to 2048 worker threads under load if necessary
-    let server: Server = Server::new(2048, request_handler);
+    let server: Server<_> = Server::new(2048, request_handler);
     server.accept("[::]:9999").expect("server failed");
 }
