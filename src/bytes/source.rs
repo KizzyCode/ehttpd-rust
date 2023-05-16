@@ -6,6 +6,7 @@ use std::{
     fs::File,
     io::{Cursor, Read},
     net::TcpStream,
+    panic::UnwindSafe,
 };
 
 /// An umbrella trait to combine `Read`, `Debug` and `Send` which are required for `Source`
@@ -44,13 +45,13 @@ pub enum Source {
     /// A TCP stream
     TcpStream(TcpStream),
     /// A catch-all/opaque variant for all types that cannot be covered by the enum's specific variants
-    Other(Box<dyn AnySource + Send>),
+    Other(Box<dyn AnySource + Send + UnwindSafe>),
 }
 impl Source {
     /// Creates a new catch-all/opaque variant from a typed object by moving it to the heap
     pub fn from_other<T>(typed: T) -> Self
     where
-        T: AnySource + Send + 'static,
+        T: AnySource + Send + UnwindSafe + 'static,
     {
         let boxed = Box::new(typed);
         Self::Other(boxed)

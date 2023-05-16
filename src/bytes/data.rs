@@ -3,6 +3,7 @@
 use std::{
     fmt::{Debug, Display, Formatter, Write},
     ops::{Deref, Range},
+    panic::UnwindSafe,
     sync::Arc,
 };
 
@@ -13,11 +14,11 @@ pub trait AnyData {
     /// `self` as implementor of `Debug`
     fn as_debug(&self) -> &dyn Debug;
     /// Clones `self`
-    fn opaque_clone(&self) -> Box<dyn AnyData + Send>;
+    fn opaque_clone(&self) -> Box<dyn AnyData + Send + UnwindSafe>;
 }
 impl<T> AnyData for T
 where
-    T: AsRef<[u8]> + Debug + Clone + Send + 'static,
+    T: AsRef<[u8]> + Debug + Clone + Send + UnwindSafe + 'static,
 {
     fn as_bytes(&self) -> &[u8] {
         self.as_ref()
@@ -25,7 +26,7 @@ where
     fn as_debug(&self) -> &dyn Debug {
         self
     }
-    fn opaque_clone(&self) -> Box<dyn AnyData + Send> {
+    fn opaque_clone(&self) -> Box<dyn AnyData + Send + UnwindSafe> {
         let clone = self.clone();
         Box::new(clone)
     }
@@ -55,7 +56,7 @@ pub enum Data {
     /// A catch-all/opaque variant for all types that cannot be covered by the enum's specific variants
     Other {
         /// The underlying data backing
-        data: Box<dyn AnyData + Send>,
+        data: Box<dyn AnyData + Send + UnwindSafe>,
         /// The referenced data within the backing
         range: Range<usize>,
     },
@@ -73,11 +74,11 @@ impl Data {
     /// Creates a new catch-all/opaque variant from a typed object by moving it to the heap
     pub fn from_other<T>(typed: T) -> Self
     where
-        T: AnyData + Send + 'static,
+        T: AnyData + Send + UnwindSafe + 'static,
     {
         // Box the value and init self
         let range = 0..typed.as_bytes().len();
-        let untyped: Box<dyn AnyData + Send> = Box::new(typed);
+        let untyped: Box<dyn AnyData + Send + UnwindSafe> = Box::new(typed);
         Self::Other { data: untyped, range }
     }
 }

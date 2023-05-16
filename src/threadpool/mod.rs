@@ -9,7 +9,7 @@ use crate::{
     threadpool::{counter::Counter, worker::Worker},
 };
 use flume::{Receiver, Sender};
-use std::sync::Arc;
+use std::{panic::UnwindSafe, sync::Arc};
 
 /// A trait for functions etc. that can be executed/called, similar to `FnOnce()`
 pub trait Executable {
@@ -22,41 +22,33 @@ pub trait Executable {
 pub struct Threadpool<T, const STACK_SIZE: usize> {
     /// The job queue to send the data to the waiting workers
     queue_tx: Sender<T>,
-    /// The receiving half of the job-queue that can be passed as "seed" to newly created workers
+    /// The receiving half of the `queue_tx` job-queue that can be passed as "seed" to newly created workers
     queue_rx_seed: Receiver<T>,
-    /// The hard worker limit
-    worker_max: usize,
     /// The idle worker count
-    worker_idle: Arc<Counter>,
-    /// The, counter::Counter} total worker count
-    worker_total: Arc<Counter>,
+    workers_idle: Arc<Counter>,
+    /// The total worker count
+    workers_total: Arc<Counter>,
 }
 impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     /// Creates a new thread pool
     pub fn new(worker_max: usize) -> Self
     where
-        T: Executable + Send + 'static,
+        T: Executable + UnwindSafe + Send + 'static,
     {
-        // Create instance
+        // Create queues and counter
         let (queue_tx, queue_rx_seed) = flume::bounded(worker_max);
-        let worker_idle = Counter::new(0);
-        let worker_total = Counter::new(0);
-        Self {
-            queue_tx,
-            queue_rx_seed,
-            worker_max,
-            worker_idle: Arc::new(worker_idle),
-            worker_total: Arc::new(worker_total),
-        }
+        let workers_idle = Arc::new(Counter::new(0));
+        let workers_total = Arc::new(Counter::new(0));
+        Self { queue_tx, queue_rx_seed, workers_idle, workers_total }
     }
 
     /// Dispatches a job into the threadpool
     pub fn dispatch(&self, job: T) -> Result<(), Error>
     where
-        T: Executable + Send + 'static,
+        T: Executable + Send + UnwindSafe + 'static,
     {
-        // Spawn an additional worker if we are below the baseline
-        if self.worker_total.get() == 0 {
+        // Spawn an additional worker if there is no running worker left (e.g. due to a panic)
+        if self.workers_total.get() == 0 {
             self.spawn()?;
         }
 
@@ -66,7 +58,7 @@ impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
         }
 
         // Perform an opportunistic spawn if we have pending jobs, but ignore errors (e.g. if a resource limit is reached)
-        if self.queue_tx.len() > self.worker_idle.get() {
+        if self.queue_tx.len() > self.workers_idle.get() {
             let _ = self.spawn();
         }
         Ok(())
@@ -75,15 +67,15 @@ impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     /// Spawns a new worker
     fn spawn(&self) -> Result<(), Error>
     where
-        T: Executable + Send + 'static,
+        T: Executable + Send + UnwindSafe + 'static,
     {
         // Check if we've reached the hard limit
-        if self.worker_total.get() == self.worker_max {
-            return Err(error!("Reached worker thread limit"));
+        if Some(self.workers_total.get()) >= self.queue_tx.capacity() {
+            return Err(error!("Reached worker limit"));
         }
 
         // Spawn the worker
-        Worker::<T, STACK_SIZE>::spawn(&self.queue_rx_seed, &self.worker_idle, &self.worker_total)
+        Worker::<T, STACK_SIZE, 5>::spawn(&self.queue_rx_seed, &self.workers_idle, &self.workers_total)
     }
 }
 impl<T, const STACK_SIZE: usize> Clone for Threadpool<T, STACK_SIZE> {
@@ -91,9 +83,8 @@ impl<T, const STACK_SIZE: usize> Clone for Threadpool<T, STACK_SIZE> {
         Self {
             queue_tx: self.queue_tx.clone(),
             queue_rx_seed: self.queue_rx_seed.clone(),
-            worker_max: self.worker_max,
-            worker_idle: self.worker_idle.clone(),
-            worker_total: self.worker_total.clone(),
+            workers_idle: self.workers_idle.clone(),
+            workers_total: self.workers_total.clone(),
         }
     }
 }

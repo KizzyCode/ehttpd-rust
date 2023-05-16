@@ -15,13 +15,14 @@ use std::{
     convert::Infallible,
     io::BufReader,
     net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs},
+    panic::UnwindSafe,
     sync::Arc,
 };
 
 /// A connection handler job to pass to the thread pool
-struct ConnectionJob<const STACK_SIZE: usize> {
+struct ConnectionJob<T, const STACK_SIZE: usize> {
     /// The connection handler
-    pub handler: Arc<dyn Fn(Request) -> Response + Send + Sync + 'static>,
+    pub handler: T,
     /// The receiving half of the stream
     pub rx: Source,
     /// The writing half of the stream
@@ -29,7 +30,10 @@ struct ConnectionJob<const STACK_SIZE: usize> {
     /// The connection queue for keep-alice TCP connections
     pub threadpool: Arc<Threadpool<Self, STACK_SIZE>>,
 }
-impl<const STACK_SIZE: usize> ConnectionJob<STACK_SIZE> {
+impl<T, const STACK_SIZE: usize> ConnectionJob<T, STACK_SIZE>
+where
+    T: Fn(Request) -> Response + Send + Sync + UnwindSafe + 'static,
+{
     /// Handles the connection
     fn handle(mut self) -> Result<(), Error> {
         // Read the request
@@ -54,28 +58,31 @@ impl<const STACK_SIZE: usize> ConnectionJob<STACK_SIZE> {
         Ok(())
     }
 }
-impl<const STACK_SIZE: usize> Executable for ConnectionJob<STACK_SIZE> {
+impl<T, const STACK_SIZE: usize> Executable for ConnectionJob<T, STACK_SIZE>
+where
+    T: Fn(Request) -> Response + Send + Sync + UnwindSafe + 'static,
+{
     fn exec(self) {
         let _ = self.handle();
     }
 }
 
 /// A HTTP server
-pub struct Server<const STACK_SIZE: usize = 65_536> {
+pub struct Server<T, const STACK_SIZE: usize = 65_536> {
     /// The thread pool to handle the incoming connections
-    threadpool: Arc<Threadpool<ConnectionJob<STACK_SIZE>, STACK_SIZE>>,
+    threadpool: Arc<Threadpool<ConnectionJob<T, STACK_SIZE>, STACK_SIZE>>,
     /// The connection handler
-    handler: Arc<dyn Fn(Request) -> Response + Send + Sync + 'static>,
+    handler: T,
 }
-impl<const STACK_SIZE: usize> Server<STACK_SIZE> {
+impl<T, const STACK_SIZE: usize> Server<T, STACK_SIZE>
+where
+    T: Fn(Request) -> Response + Clone + Send + Sync + UnwindSafe + 'static,
+{
     /// Creates a new server bound on the given address
-    pub fn new<T>(worker_max: usize, handler: T) -> Self
-    where
-        T: Fn(Request) -> Response + Send + Sync + 'static,
-    {
-        // Create threadpool and
+    pub fn new(worker_max: usize, handler: T) -> Self {
+        // Create threadpool and init self
         let threadpool: Threadpool<_, STACK_SIZE> = Threadpool::new(worker_max);
-        Self { threadpool: Arc::new(threadpool), handler: Arc::new(handler) }
+        Self { threadpool: Arc::new(threadpool), handler }
     }
 
     /// Dispatches an incoming TCP stream
@@ -90,9 +97,9 @@ impl<const STACK_SIZE: usize> Server<STACK_SIZE> {
     }
 
     /// Listens on the given address and accepts forever
-    pub fn accept<T>(self, address: T) -> Result<Infallible, Error>
+    pub fn accept<A>(self, address: A) -> Result<Infallible, Error>
     where
-        T: ToSocketAddrs,
+        A: ToSocketAddrs,
     {
         // Bind and listen
         let socket = TcpListener::bind(address)?;
