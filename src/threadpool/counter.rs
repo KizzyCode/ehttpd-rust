@@ -41,12 +41,14 @@ impl Counter {
         self.counter.fetch_sub(1, SeqCst);
     }
 
-    /// Performs a temporary increment of the counter by one; the operation is undone if the returned guard is dropped
+    /// Performs a temporary increment of the counter by one; the operation is reverted when the returned guard is dropped
+    #[must_use]
     pub fn increment_tmp(&self) -> CounterOpGuard {
         self.increment();
         CounterOpGuard { counter: self, on_drop: Self::decrement }
     }
-    /// Performs a temporary decrement of the counter by one; the operation is undone if the returned guard is dropped
+    /// Performs a temporary decrement of the counter by one; the operation is reverted when the returned guard is dropped
+    #[must_use]
     pub fn decrement_tmp(&self) -> CounterOpGuard {
         self.decrement();
         CounterOpGuard { counter: self, on_drop: Self::increment }
