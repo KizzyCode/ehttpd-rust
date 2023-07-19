@@ -2,10 +2,12 @@
 
 mod data;
 mod dataext;
+mod sink;
 mod source;
 
 pub use crate::bytes::{
     data::Data,
     dataext::{DataParseExt, DataSliceExt},
-    source::Source,
+    sink::{AnySink, Sink},
+    source::{AnySource, Source},
 };
