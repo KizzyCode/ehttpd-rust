@@ -6,7 +6,7 @@ pub mod http;
 pub mod threadpool;
 
 use crate::{
-    bytes::Source,
+    bytes::{Sink, Source},
     error::Error,
     http::{Request, Response},
     threadpool::{Executable, Threadpool},
@@ -14,7 +14,7 @@ use crate::{
 use std::{
     convert::Infallible,
     io::BufReader,
-    net::{Shutdown, TcpListener, TcpStream, ToSocketAddrs},
+    net::{TcpListener, ToSocketAddrs},
     panic::UnwindSafe,
     sync::Arc,
 };
@@ -26,7 +26,7 @@ struct ConnectionJob<T, const STACK_SIZE: usize> {
     /// The receiving half of the stream
     pub rx: Source,
     /// The writing half of the stream
-    pub tx: TcpStream,
+    pub tx: Sink,
     /// The connection queue for keep-alice TCP connections
     pub threadpool: Arc<Threadpool<Self, STACK_SIZE>>,
 }
@@ -46,9 +46,8 @@ where
         let mut response = (self.handler)(request);
         response.to_stream(&mut self.tx)?;
 
-        // Close the connection if it is not kept-alive
+        // Don't reschedule the connection if it is not kept-alive
         if response.has_connection_close() {
-            self.tx.shutdown(Shutdown::Both)?;
             return Ok(());
         }
 
@@ -85,12 +84,8 @@ where
         Self { threadpool: Arc::new(threadpool), handler }
     }
 
-    /// Dispatches an incoming TCP stream
-    pub fn dispatch(&self, connection: TcpStream) -> Result<(), Error> {
-        // Split the connection into RX and TX
-        let tx = connection.try_clone()?;
-        let rx = Source::from_other(BufReader::new(connection));
-
+    /// Dispatches a connection
+    pub fn dispatch(&self, rx: Source, tx: Sink) -> Result<(), Error> {
         // Create and dispatch the job
         let job = ConnectionJob { handler: self.handler.clone(), rx, tx, threadpool: self.threadpool.clone() };
         self.threadpool.dispatch(job)
@@ -104,9 +99,14 @@ where
         // Bind and listen
         let socket = TcpListener::bind(address)?;
         loop {
-            // Accept and dispatch
+            // Accept and prepare connection
             let (stream, _) = socket.accept()?;
-            self.dispatch(stream)?;
+            let tx = stream.try_clone()?;
+            let rx = BufReader::new(stream);
+
+            // Dispatch connection
+            let rx = Source::from_other(rx);
+            self.dispatch(rx, tx.into())?;
         }
     }
 }
