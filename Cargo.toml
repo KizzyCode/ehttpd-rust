@@ -20,7 +20,7 @@ default = []
 
 
 [dependencies]
-flume = { version = "0.10.14", default-features = false }
+flume = { version = "0.11.0", default-features = false }
 
 
 [profile.release]
