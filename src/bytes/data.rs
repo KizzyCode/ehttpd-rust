@@ -50,8 +50,8 @@ pub enum Data {
     Smolbuf {
         /// The small buffer
         buf: [u8; 48],
-        /// The amount of bytes within the small buffer
-        len: usize,
+        /// The referenced data within the backing
+        range: Range<usize>,
     },
     /// An `Arc`ed vector to build lifetime-independent (sub)slices over the same set of elements
     ArcVec {
@@ -74,8 +74,12 @@ impl Data {
     where
         T: Into<[u8; 48]>,
     {
-        assert!(len <= 48, "length must not be greater than the buffer length");
-        Self::Smolbuf { buf: buf.into(), len }
+        // Convert the buffer and validate the length
+        let buf = buf.into();
+        assert!(len <= buf.len(), "length must not be greater than the buffer length");
+
+        // Init self
+        Self::Smolbuf { buf, range: 0..len }
     }
     /// Creates a new reference-counted data variant
     pub fn new_arcvec<T>(data: T) -> Self
@@ -110,7 +114,7 @@ impl AsRef<[u8]> for Data {
             Self::Empty => b"",
             Self::Vec(vec) => vec,
             Self::Static(static_) => static_,
-            Self::Smolbuf { buf, len } => &buf[..*len],
+            Self::Smolbuf { buf, range } => &buf[range.start..range.end],
             Self::ArcVec { backing, range } => &backing[range.start..range.end],
             Self::Other { data, range } => {
                 let slice = data.as_bytes();
@@ -125,7 +129,9 @@ impl Debug for Data {
             Self::Empty => f.debug_tuple("Empty").finish(),
             Self::Vec(arg0) => f.debug_tuple("Vec").field(arg0).finish(),
             Self::Static(arg0) => f.debug_tuple("Static").field(arg0).finish(),
-            Self::Smolbuf { buf, len } => f.debug_struct("Smolbuf").field("buf", &buf).field("len", &len).finish(),
+            Self::Smolbuf { buf, range } => {
+                f.debug_struct("Smolbuf").field("buf", &buf).field("range", &range).finish()
+            }
             Self::ArcVec { backing, range } => {
                 f.debug_struct("RcVec").field("backing", &backing).field("range", &range).finish()
             }
@@ -141,7 +147,7 @@ impl Clone for Data {
             Self::Empty => Self::Empty,
             Self::Vec(arg0) => Self::Vec(arg0.clone()),
             Self::Static(arg0) => Self::Static(arg0),
-            Self::Smolbuf { buf, len } => Self::Smolbuf { buf: *buf, len: *len },
+            Self::Smolbuf { buf, range } => Self::Smolbuf { buf: *buf, range: range.clone() },
             Self::ArcVec { backing, range } => Self::ArcVec { backing: backing.clone(), range: range.clone() },
             Self::Other { data, range } => Self::Other { data: data.opaque_clone(), range: range.clone() },
         }
