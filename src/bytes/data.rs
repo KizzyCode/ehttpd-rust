@@ -49,7 +49,7 @@ pub enum Data {
     /// A very small, stack-allocated buffer
     Smolbuf {
         /// The small buffer
-        buf: [u8; 48],
+        buf: [u8; Self::SMOLBUF_SIZE],
         /// The referenced data within the backing
         range: Range<usize>,
     },
@@ -69,17 +69,16 @@ pub enum Data {
     },
 }
 impl Data {
+    /// The size of a smolbuf
+    pub const SMOLBUF_SIZE: usize = 48;
+
     /// Creates a new small, stack-allocated data variant
     pub fn new_smolbuf<T>(buf: T, len: usize) -> Self
     where
         T: Into<[u8; 48]>,
     {
-        // Convert the buffer and validate the length
-        let buf = buf.into();
-        assert!(len <= buf.len(), "length must not be greater than the buffer length");
-
-        // Init self
-        Self::Smolbuf { buf, range: 0..len }
+        assert!(len <= Self::SMOLBUF_SIZE, "length must not be greater than the buffer length");
+        Self::Smolbuf { buf: buf.into(), range: 0..len }
     }
     /// Creates a new reference-counted data variant
     pub fn new_arcvec<T>(data: T) -> Self
