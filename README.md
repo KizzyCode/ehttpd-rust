@@ -18,35 +18,35 @@ The rationale behind the thread-based approach is that it is much easier to impl
 requires less code, and is – in theory – less error prone.
 
 Furthermore, it also simplifies application development since the developer cannot accidentally stall the entire runtime
-with a single blocking call – due to the OS-scheduler, threads offer much stronger concurrency isolation guarantees
+with a single blocking call – managed by the OS-scheduler, threads offer much stronger concurrency isolation guarantees
 (which can even be `nice`d or tweaked in most environments if desired).
 
 
 ## Performance
 While the thread-based approach is not the most efficient out there, it's not that bad either. Some `wrk` benchmarks:
 
-### MacBook Pro (`M1 Pro`, `helloworld`)
+### MacBook Pro (`M1 Pro`, `helloworld`, `v0.7.0`)
 ```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
   64 threads and 64 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     0.98ms  346.32us  13.64ms   89.26%
-    Req/Sec     1.03k   125.94     1.38k    70.02%
-  662807 requests in 10.10s, 32.87MB read
-Requests/sec:  65622.88
-Transfer/sec:      3.25MB
+    Latency     1.76ms    3.05ms  46.96ms   91.85%
+    Req/Sec     1.00k   565.47     4.64k    79.33%
+  640123 requests in 10.09s, 31.75MB read
+Requests/sec:  63468.72
+Transfer/sec:      3.15MB
 ```
 
-### Old Linux Machine (`Intel(R) Core(TM) i5-2500K CPU @ 3.30GHz`, `helloworld-nokeepalive`)
+### Old Linux Machine (`Intel(R) Core(TM) i5-2500K CPU @ 3.30GHz`, `helloworld-nokeepalive`, `v0.7.0`)
 ```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
   64 threads and 64 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     2.31ms    1.31ms  79.98ms   97.48%
-    Req/Sec   419.80     73.74     2.03k    94.15%
-  268421 requests in 10.10s, 18.18MB read
-Requests/sec:  26579.74
-Transfer/sec:      1.80MB
+    Latency     2.22ms    1.00ms  60.93ms   95.30%
+    Req/Sec   435.19     56.94     1.00k    85.05%
+  278046 requests in 10.10s, 18.83MB read
+Requests/sec:  27528.42
+Transfer/sec:      1.86MB
 ```
