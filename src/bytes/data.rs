@@ -1,4 +1,4 @@
-//! A stack-allocating, type-abstract data type
+//! An owned, type-abstract data type
 
 use std::{
     fmt::{Debug, Display, Formatter, Write},
@@ -75,7 +75,7 @@ impl Data {
     /// Creates a new small, stack-allocated data variant
     pub fn new_smolbuf<T>(buf: T, len: usize) -> Self
     where
-        T: Into<[u8; 48]>,
+        T: Into<[u8; Self::SMOLBUF_SIZE]>,
     {
         assert!(len <= Self::SMOLBUF_SIZE, "length must not be greater than the buffer length");
         Self::Smolbuf { buf: buf.into(), range: 0..len }
