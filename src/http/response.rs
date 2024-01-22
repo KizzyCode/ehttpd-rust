@@ -51,7 +51,7 @@ impl<const HEADER_SIZE_MAX: usize> Response<HEADER_SIZE_MAX> {
         }
         buf.write_all(b"\r\n")?;
 
-        // Write the header copy the buffer
+        // Write the header, and copy the body
         stream.write_all(&buf)?;
         io::copy(&mut self.body, stream)?;
         Ok(())
