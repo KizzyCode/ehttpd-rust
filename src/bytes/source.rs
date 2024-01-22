@@ -1,4 +1,4 @@
-//! A readable data source
+//! An owned, type-abstract readable data source
 
 use crate::bytes::data::Data;
 use std::{
@@ -28,7 +28,7 @@ where
     }
 }
 
-/// A type-abstract data source
+/// An owned, type-abstract data source
 ///
 /// # Rationale
 /// The idea behind this type is to provide some dynamic polymorphism, but with some "fast-paths" for common types to

@@ -1,4 +1,4 @@
-//! A writeable data sink
+//! An owned, type-abstract writeable data sink
 
 use std::{
     fmt::{Debug, Formatter},
@@ -27,7 +27,7 @@ where
     }
 }
 
-/// A type-abstract data sink
+/// An owned, type-abstract data sink
 ///
 /// # Rationale
 /// The idea behind this type is to provide some dynamic polymorphism, but with some "fast-paths" for common types to
