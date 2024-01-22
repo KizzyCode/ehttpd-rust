@@ -1,15 +1,16 @@
 //! Implements a threadpool
 
-mod counter;
 mod worker;
 
-use crate::{
-    error,
-    error::Error,
-    threadpool::{counter::Counter, worker::Worker},
-};
+use crate::{error, error::Error, threadpool::worker::Worker};
 use flume::{Receiver, Sender};
-use std::{panic::UnwindSafe, sync::Arc};
+use std::{
+    panic::UnwindSafe,
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Arc,
+    },
+};
 
 /// A trait for functions etc. that can be executed/called, similar to `FnOnce()`
 pub trait Executable {
@@ -24,10 +25,8 @@ pub struct Threadpool<T, const STACK_SIZE: usize> {
     queue_tx: Sender<T>,
     /// The receiving half of the `queue_tx` job-queue that can be passed as "seed" to newly created workers
     queue_rx_seed: Receiver<T>,
-    /// The idle worker count
-    workers_idle: Arc<Counter>,
     /// The total worker count
-    workers_total: Arc<Counter>,
+    workers: Arc<AtomicUsize>,
 }
 impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     /// Creates a new thread pool
@@ -37,9 +36,8 @@ impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     {
         // Create queues and counter
         let (queue_tx, queue_rx_seed) = flume::bounded(worker_max);
-        let workers_idle = Arc::new(Counter::new(0));
-        let workers_total = Arc::new(Counter::new(0));
-        Self { queue_tx, queue_rx_seed, workers_idle, workers_total }
+        let workers = Arc::new(AtomicUsize::default());
+        Self { queue_tx, queue_rx_seed, workers }
     }
 
     /// Dispatches a job into the threadpool
@@ -47,20 +45,19 @@ impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     where
         T: Executable + Send + UnwindSafe + 'static,
     {
-        // Spawn an additional worker if there is no running worker left (e.g. due to a panic)
-        if self.workers_total.get() == 0 {
+        // Spawn workers as necessary
+        let worker_count = self.workers.load(SeqCst);
+        if worker_count == 0 {
+            // We need at least one worker, so required spawn
             self.spawn()?;
+        }
+        if worker_count <= self.queue_tx.len() {
+            // More workers would be better, so opportunistic spawn
+            let _ = self.spawn();
         }
 
         // Dispatch the job
-        if self.queue_tx.try_send(job).is_err() {
-            return Err(error!("Threadpool is congested"));
-        }
-
-        // Perform an opportunistic spawn if we have pending jobs, but ignore errors (e.g. if a resource limit is reached)
-        if self.queue_tx.len() > self.workers_idle.get() {
-            let _ = self.spawn();
-        }
+        self.queue_tx.try_send(job).map_err(|_| error!("Threadpool is congested"))?;
         Ok(())
     }
 
@@ -70,12 +67,12 @@ impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
         T: Executable + Send + UnwindSafe + 'static,
     {
         // Check if we've reached the hard limit
-        if Some(self.workers_total.get()) >= self.queue_tx.capacity() {
-            return Err(error!("Reached worker limit"));
+        if Some(self.workers.load(SeqCst)) >= self.queue_tx.capacity() {
+            return Err(error!("Worker limit exceeded"));
         }
 
         // Spawn the worker
-        Worker::<T, STACK_SIZE, 5>::spawn(&self.queue_rx_seed, &self.workers_idle, &self.workers_total)
+        Worker::<T, STACK_SIZE>::spawn(self.queue_rx_seed.clone(), self.workers.clone())
     }
 }
 impl<T, const STACK_SIZE: usize> Clone for Threadpool<T, STACK_SIZE> {
@@ -83,8 +80,7 @@ impl<T, const STACK_SIZE: usize> Clone for Threadpool<T, STACK_SIZE> {
         Self {
             queue_tx: self.queue_tx.clone(),
             queue_rx_seed: self.queue_rx_seed.clone(),
-            workers_idle: self.workers_idle.clone(),
-            workers_total: self.workers_total.clone(),
+            workers: self.workers.clone(),
         }
     }
 }
