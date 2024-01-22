@@ -19,8 +19,8 @@ use std::{
     sync::Arc,
 };
 
-/// A connection handler job to pass to the thread pool
-struct ConnectionJob<T, const STACK_SIZE: usize> {
+/// A connection to pass to the thread pool
+struct Connection<T, const STACK_SIZE: usize> {
     /// The connection handler
     pub handler: T,
     /// The receiving half of the stream
@@ -30,36 +30,24 @@ struct ConnectionJob<T, const STACK_SIZE: usize> {
     /// The connection queue for keep-alice TCP connections
     pub threadpool: Arc<Threadpool<Self, STACK_SIZE>>,
 }
-impl<T, const STACK_SIZE: usize> ConnectionJob<T, STACK_SIZE>
+impl<T, const STACK_SIZE: usize> Connection<T, STACK_SIZE>
 where
-    T: Fn(Request) -> Response + Send + Sync + UnwindSafe + 'static,
+    T: Fn(&mut Source, &mut Sink) -> bool + Send + Sync + UnwindSafe + 'static,
 {
     /// Handles the connection
     fn handle(mut self) -> Result<(), Error> {
-        // Read the request
-        let Some(request) = Request::from_stream(&mut self.rx)? else {
-            // The stream has been closed immediately – due to keep-alive this is not necessarily an error
-            return Ok(());
-        };
-
-        // Create the response and reacquire the stream
-        let mut response = (self.handler)(request);
-        response.to_stream(&mut self.tx)?;
-
-        // Don't reschedule the connection if it is not kept-alive
-        if response.has_connection_close() {
-            return Ok(());
+        // Call the connection handler
+        if (self.handler)(&mut self.rx, &mut self.tx) {
+            // Reschedule the connection
+            let threadpool = self.threadpool.clone();
+            threadpool.dispatch(self)?;
         }
-
-        // Reschedule the connection
-        let threadpool = self.threadpool.clone();
-        threadpool.dispatch(self)?;
         Ok(())
     }
 }
-impl<T, const STACK_SIZE: usize> Executable for ConnectionJob<T, STACK_SIZE>
+impl<T, const STACK_SIZE: usize> Executable for Connection<T, STACK_SIZE>
 where
-    T: Fn(Request) -> Response + Send + Sync + UnwindSafe + 'static,
+    T: Fn(&mut Source, &mut Sink) -> bool + Send + Sync + UnwindSafe + 'static,
 {
     fn exec(self) {
         let _ = self.handle();
@@ -69,13 +57,13 @@ where
 /// A HTTP server
 pub struct Server<T, const STACK_SIZE: usize = 65_536> {
     /// The thread pool to handle the incoming connections
-    threadpool: Arc<Threadpool<ConnectionJob<T, STACK_SIZE>, STACK_SIZE>>,
+    threadpool: Arc<Threadpool<Connection<T, STACK_SIZE>, STACK_SIZE>>,
     /// The connection handler
     handler: T,
 }
 impl<T, const STACK_SIZE: usize> Server<T, STACK_SIZE>
 where
-    T: Fn(Request) -> Response + Clone + Send + Sync + UnwindSafe + 'static,
+    T: Fn(&mut Source, &mut Sink) -> bool + Clone + Send + Sync + UnwindSafe + 'static,
 {
     /// Creates a new server bound on the given address
     pub fn new(worker_max: usize, handler: T) -> Self {
@@ -87,7 +75,7 @@ where
     /// Dispatches a connection
     pub fn dispatch(&self, rx: Source, tx: Sink) -> Result<(), Error> {
         // Create and dispatch the job
-        let job = ConnectionJob { handler: self.handler.clone(), rx, tx, threadpool: self.threadpool.clone() };
+        let job = Connection { handler: self.handler.clone(), rx, tx, threadpool: self.threadpool.clone() };
         self.threadpool.dispatch(job)
     }
 
@@ -109,4 +97,25 @@ where
             self.dispatch(rx, tx.into())?;
         }
     }
+}
+
+/// An adapter to bridge a `source,sink`-handler to a `request->response`-handler
+#[must_use]
+pub fn reqresp<F>(source: &mut Source, sink: &mut Sink, handler: F) -> bool
+where
+    F: Fn(Request) -> Response + Send + Sync + UnwindSafe + 'static,
+{
+    // Read request
+    let Ok(Some(request)) = Request::from_stream(source) else {
+        return false;
+    };
+
+    // Handle request and write response
+    let mut response = handler(request);
+    let Ok(_) = response.to_stream(sink) else {
+        return false;
+    };
+
+    // Mark connection as to-be-rescheduled
+    !response.has_connection_close()
 }
