@@ -3,7 +3,6 @@
 use crate::{error::Error, threadpool::Executable};
 use flume::Receiver;
 use std::{
-    panic::{self, UnwindSafe},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc,
@@ -28,7 +27,7 @@ impl<T, const STACK_SIZE: usize> Worker<T, STACK_SIZE> {
     /// Spawns a new worker and returns it's job queue
     pub fn spawn(queue_rx: Receiver<T>, worker: Arc<AtomicUsize>) -> Result<(), Error>
     where
-        T: Executable + Send + UnwindSafe + 'static,
+        T: Executable + Send + 'static,
     {
         // Create the worker and increment counter
         worker.fetch_add(1, SeqCst);
@@ -43,7 +42,7 @@ impl<T, const STACK_SIZE: usize> Worker<T, STACK_SIZE> {
     /// The worker runloop
     fn runloop(self)
     where
-        T: Executable + UnwindSafe,
+        T: Executable,
     {
         'runloop: loop {
             // Mark use as idle and wait for the next job
@@ -56,7 +55,9 @@ impl<T, const STACK_SIZE: usize> Worker<T, STACK_SIZE> {
             };
 
             // Execute job
-            let _ = panic::catch_unwind(|| job.exec());
+            // Note: While jobs should not panic, it's ok if they do: The worker thread panics and gets unwound, but that
+            // should not cause any trouble
+            job.exec();
         }
     }
 }

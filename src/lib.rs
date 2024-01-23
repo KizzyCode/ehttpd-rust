@@ -32,7 +32,7 @@ struct Connection<T, const STACK_SIZE: usize> {
 }
 impl<T, const STACK_SIZE: usize> Connection<T, STACK_SIZE>
 where
-    T: Fn(&mut Source, &mut Sink) -> bool + Send + Sync + UnwindSafe + 'static,
+    T: Fn(&mut Source, &mut Sink) -> bool + Send + Sync + 'static,
 {
     /// Handles the connection
     fn handle(mut self) -> Result<(), Error> {
@@ -47,7 +47,7 @@ where
 }
 impl<T, const STACK_SIZE: usize> Executable for Connection<T, STACK_SIZE>
 where
-    T: Fn(&mut Source, &mut Sink) -> bool + Send + Sync + UnwindSafe + 'static,
+    T: Fn(&mut Source, &mut Sink) -> bool + Send + Sync + 'static,
 {
     fn exec(self) {
         let _ = self.handle();
@@ -63,7 +63,7 @@ pub struct Server<T, const STACK_SIZE: usize = 65_536> {
 }
 impl<T, const STACK_SIZE: usize> Server<T, STACK_SIZE>
 where
-    T: Fn(&mut Source, &mut Sink) -> bool + Clone + Send + Sync + UnwindSafe + 'static,
+    T: Fn(&mut Source, &mut Sink) -> bool + Clone + Send + Sync + 'static,
 {
     /// Creates a new server bound on the given address
     pub fn new(worker_max: usize, handler: T) -> Self {

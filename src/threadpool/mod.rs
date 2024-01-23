@@ -4,12 +4,9 @@ mod worker;
 
 use crate::{error, error::Error, threadpool::worker::Worker};
 use flume::{Receiver, Sender};
-use std::{
-    panic::UnwindSafe,
-    sync::{
-        atomic::{AtomicUsize, Ordering::SeqCst},
-        Arc,
-    },
+use std::sync::{
+    atomic::{AtomicUsize, Ordering::SeqCst},
+    Arc,
 };
 
 /// A trait for functions etc. that can be executed/called, similar to `FnOnce()`
@@ -32,7 +29,7 @@ impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     /// Creates a new thread pool
     pub fn new(worker_max: usize) -> Self
     where
-        T: Executable + UnwindSafe + Send + 'static,
+        T: Executable + Send + 'static,
     {
         // Create queues and counter
         let (queue_tx, queue_rx_seed) = flume::bounded(worker_max);
@@ -43,7 +40,7 @@ impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     /// Dispatches a job into the threadpool
     pub fn dispatch(&self, job: T) -> Result<(), Error>
     where
-        T: Executable + Send + UnwindSafe + 'static,
+        T: Executable + Send + 'static,
     {
         // Spawn workers as necessary
         let worker_count = self.workers.load(SeqCst);
@@ -64,7 +61,7 @@ impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     /// Spawns a new worker
     fn spawn(&self) -> Result<(), Error>
     where
-        T: Executable + Send + UnwindSafe + 'static,
+        T: Executable + Send + 'static,
     {
         // Check if we've reached the hard limit
         if Some(self.workers.load(SeqCst)) >= self.queue_tx.capacity() {
