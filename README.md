@@ -25,17 +25,17 @@ with a single blocking call – managed by the OS-scheduler, threads offer much 
 ## Performance
 While the thread-based approach is not the most efficient out there, it's not that bad either. Some `wrk` benchmarks:
 
-### MacBook Pro (`M1 Pro`, `helloworld`, `v0.7.0`)
+### MacBook Pro (`M1 Pro`, `helloworld`, `v0.7.1`)
 ```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
   64 threads and 64 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     1.76ms    3.05ms  46.96ms   91.85%
-    Req/Sec     1.00k   565.47     4.64k    79.33%
-  640123 requests in 10.09s, 31.75MB read
-Requests/sec:  63468.72
-Transfer/sec:      3.15MB
+    Latency     1.00ms  520.00us  27.29ms   95.96%
+    Req/Sec     1.02k   262.37     6.00k    94.81%
+  654074 requests in 10.10s, 32.44MB read
+Requests/sec:  64756.19
+Transfer/sec:      3.21MB
 ```
 
 ### Old Linux Machine (`Intel(R) Core(TM) i5-2500K CPU @ 3.30GHz`, `helloworld-nokeepalive`, `v0.7.0`)
