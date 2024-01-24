@@ -15,7 +15,6 @@ use std::{
     convert::Infallible,
     io::BufReader,
     net::{TcpListener, ToSocketAddrs},
-    panic::UnwindSafe,
     sync::Arc,
 };
 
@@ -103,7 +102,7 @@ where
 #[must_use]
 pub fn reqresp<F>(source: &mut Source, sink: &mut Sink, handler: F) -> bool
 where
-    F: Fn(Request) -> Response + Send + Sync + UnwindSafe + 'static,
+    F: Fn(Request) -> Response + Send + Sync + 'static,
 {
     // Read request
     let Ok(Some(request)) = Request::from_stream(source) else {
