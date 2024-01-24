@@ -17,35 +17,38 @@ pub trait ResponseExt
 where
     Self: Sized,
 {
-    /// Creates a new HTTP response with the given status code and reason
+    /// Creates a new HTTP response with the given status code and reason and sets an empty body
     fn new_status_reason<T>(status: u16, reason: T) -> Self
     where
         T: Into<Data>;
-    /// Creates a new `200 OK` HTTP response
+    /// Creates a new `200 OK` HTTP response with an empty body
     fn new_200_ok() -> Self;
 
-    /// Creates a new `307 Temporary Redirect` HTTP response with the `Location`-header field set to the given location
+    /// Creates a new `307 Temporary Redirect` HTTP response with an empty body and the `Location`-header field set to the
+    /// given location
     fn new_307_temporaryredirect<T>(location: T) -> Self
     where
         T: Into<Data>;
 
-    /// Creates a new `401 Unauthorized` HTTP response with the `WWW-Authenticate`-header field set to the given
-    /// requirement
+    /// Creates a new `400 Bad Request` HTTP response with an empty body
+    fn new_400_badrequest() -> Self;
+    /// Creates a new `401 Unauthorized` HTTP response  with an empty body and the `WWW-Authenticate`-header field set to
+    /// the given requirement
     fn new_401_unauthorized<T>(requirement: T) -> Self
     where
         T: Into<Data>;
-    /// Creates a new `403 Forbidden` HTTP response
+    /// Creates a new `403 Forbidden` HTTP response with an empty body
     fn new_403_forbidden() -> Self;
-    /// Creates a new `404 Not Found` HTTP response
+    /// Creates a new `404 Not Found` HTTP response with an empty body
     fn new_404_notfound() -> Self;
-    /// Creates a new `405 Method Not Allowed` HTTP response
+    /// Creates a new `405 Method Not Allowed` HTTP response with an empty body
     fn new_405_methodnotallowed() -> Self;
-    /// Creates a new `413 Payload Too Large` HTTP response
+    /// Creates a new `413 Payload Too Large` HTTP response with an empty body
     fn new_413_payloadtoolarge() -> Self;
-    /// Creates a new `416 Range Not Satisfiable` HTTP response
+    /// Creates a new `416 Range Not Satisfiable` HTTP response with an empty body
     fn new_416_rangenotsatisfiable() -> Self;
 
-    /// Creates a new `500 Internal Server Error` HTTP response
+    /// Creates a new `500 Internal Server Error` HTTP response with an empty body
     fn new_500_internalservererror() -> Self;
 
     /// Sets the field with the given name (performs an ASCII-case-insensitve comparison for replacement)
@@ -53,6 +56,10 @@ where
     where
         K: Into<Data>,
         V: Into<Data>;
+    /// Sets the body content type
+    fn set_content_type<T>(&mut self, type_: T)
+    where
+        T: Into<Data>;
     /// Sets the body content length
     fn set_content_length(&mut self, len: u64);
     /// Sets the connection header to `Close`
@@ -61,11 +68,6 @@ where
     /// Returns the content length if it is set
     fn content_length(&self) -> Result<Option<u64>, Error>;
 
-    /// Sets the given file as body content
-    ///
-    /// # Note
-    /// This function **DOES NOT** set the "Content-Length" header, it's up to you to set it manually
-    fn set_body(&mut self, body: Source);
     /// Sets the given data as body content and updates the `Content-Length` header accordingly
     fn set_body_data<T>(&mut self, data: T)
     where
@@ -88,10 +90,15 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
     where
         T: Into<Data>,
     {
+        // Create basic request
         let version = Data::from(b"HTTP/1.1");
         let status = Data::from(status.to_string());
         let reason = reason.into();
-        Self::new(version, status, reason)
+        let mut this = Self::new(version, status, reason);
+
+        // Set content-length to 0
+        this.set_content_length(0);
+        this
     }
     fn new_200_ok() -> Self {
         Self::new_status_reason(200, "OK")
@@ -106,6 +113,9 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
         this
     }
 
+    fn new_400_badrequest() -> Self {
+        Self::new_status_reason(400, "Bad Request")
+    }
     fn new_401_unauthorized<T>(requirement: T) -> Self
     where
         T: Into<Data>,
@@ -114,7 +124,6 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
         this.set_field("WWW-Authenticate", requirement);
         this
     }
-
     fn new_403_forbidden() -> Self {
         Self::new_status_reason(403, "Forbidden")
     }
@@ -148,6 +157,12 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
         self.fields.retain(|(existing, _)| !key.eq_ignore_ascii_case(existing));
         self.fields.push((key, value));
     }
+    fn set_content_type<T>(&mut self, type_: T)
+    where
+        T: Into<Data>,
+    {
+        self.set_field("Content-Type", type_)
+    }
     fn set_content_length(&mut self, len: u64) {
         self.set_field("Content-Length", len.to_string())
     }
@@ -168,16 +183,13 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
         Ok(None)
     }
 
-    fn set_body(&mut self, body: Source) {
-        self.body = body;
-    }
     fn set_body_data<T>(&mut self, data: T)
     where
         T: Into<Data>,
     {
         let data = data.into();
         self.set_content_length(data.len() as u64);
-        self.set_body(Source::from(data))
+        self.body = Source::from(data);
     }
     fn set_body_file<T>(&mut self, mut file: T) -> Result<(), Error>
     where
@@ -196,8 +208,7 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
         self.set_content_length(len - pos);
 
         // Set the body
-        let file = file.into();
-        self.set_body(file);
+        self.body = file.into();
         Ok(())
     }
 
