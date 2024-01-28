@@ -2,6 +2,7 @@
 
 use std::{
     backtrace::{Backtrace, BacktraceStatus},
+    convert::Infallible,
     error,
     fmt::{self, Display, Formatter},
     num::ParseIntError,
@@ -77,5 +78,10 @@ impl From<Utf8Error> for Error {
 impl From<ParseIntError> for Error {
     fn from(value: ParseIntError) -> Self {
         error!(with: value, "Value is not a valid integer")
+    }
+}
+impl From<Infallible> for Error {
+    fn from(_: Infallible) -> Self {
+        unreachable!("infallible variant can never be constructed")
     }
 }
