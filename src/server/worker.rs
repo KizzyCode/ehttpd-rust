@@ -1,6 +1,6 @@
 //! A thread worker
 
-use crate::{error::Error, threadpool::Executable};
+use crate::{error::Error, server::pool::Executable};
 use flume::Receiver;
 use std::{
     sync::{

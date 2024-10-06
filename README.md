@@ -10,22 +10,26 @@
 # `ehttpd`
 Welcome to `ehttpd` 🎉
 
-`ehttpd` is a thread-based HTTP server library, which can be used to create custom HTTP server applications.
+`ehttpd` is a HTTP server library, which can be used to create custom HTTP server applications. It also offers an
+optional built-in threadpool-based server for simple applications (feature: `server`, disabled by default).
 
 
-## Thread-based design
+## Threadpool-based server
 The rationale behind the thread-based approach is that it is much easier to implement than `async/await`, subsequently
 requires less code, and is – in theory – less error prone.
 
 Furthermore, it also simplifies application development since the developer cannot accidentally stall the entire runtime
-with a single blocking call – managed by the OS-scheduler, threads offer much stronger concurrency isolation guarantees
-(which can even be `nice`d or tweaked in most environments if desired).
+with a single blocking call; being managed by the OS-scheduler, threads offer much stronger concurrency isolation
+guarantees (which can even be `nice`d or tweaked in most environments if desired).
+
+Note that, starting with version `0.9`, the built-in server is an optional feature and needs to be enabled using the
+`server` feature.
 
 
-## Performance
+### Performance
 While the thread-based approach is not the most efficient out there, it's not that bad either. Some `wrk` benchmarks:
 
-### MacBook Pro (`M1 Pro`, `helloworld`, `v0.7.1`)
+#### MacBook Pro (`M1 Pro`, `helloworld`, `v0.7.1`)
 ```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
@@ -38,7 +42,7 @@ Requests/sec:  64756.19
 Transfer/sec:      3.21MB
 ```
 
-### Old Linux Machine (`Intel(R) Core(TM) i5-2500K CPU @ 3.30GHz`, `helloworld-nokeepalive`, `v0.7.0`)
+#### Old Linux Machine (`Intel(R) Core(TM) i5-2500K CPU @ 3.30GHz`, `helloworld-nokeepalive`, `v0.7.0`)
 ```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope

@@ -1,10 +1,11 @@
-use ehttpd::{
-    bytes::{Sink, Source},
-    http::{Response, ResponseExt},
-    Server,
-};
-
+#[cfg(feature = "server")]
 fn main() {
+    use ehttpd::{
+        bytes::{Sink, Source},
+        http::{Response, ResponseExt},
+        Server,
+    };
+
     // Define our request handler
     let connection_handler = |source: &mut Source, sink: &mut Sink| {
         // Handle request
@@ -24,4 +25,9 @@ fn main() {
     // Create a server that listens at [::]:9999 with up to 2048 worker threads under load if necessary
     let server: Server<_> = Server::new(2048, connection_handler);
     server.accept("[::]:9999").expect("server failed");
+}
+
+#[cfg(not(feature = "server"))]
+fn main() {
+    panic!("The `server`-feature must be enabled for this example to run")
 }

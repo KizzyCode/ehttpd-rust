@@ -1,6 +1,6 @@
 [package]
 name = "ehttpd"
-version = "0.8.2"
+version = "0.9.0"
 edition = "2021"
 authors = ["KizzyCode Software Labs./Keziah Biermann <development@kizzycode.de>"]
 keywords = []
@@ -17,10 +17,11 @@ appveyor = { repository = "KizzyCode/ehttpd-rust" }
 
 [features]
 default = []
+server = ["dep:flume"]
 
 
 [dependencies]
-flume = { version = "0.11.0", default-features = false }
+flume = { version = "0.11.0", default-features = false, optional = true }
 
 
 [profile.release]

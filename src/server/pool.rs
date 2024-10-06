@@ -1,8 +1,6 @@
-//! Implements a threadpool
+//! A simple threadpool implementation
 
-mod worker;
-
-use crate::{error, error::Error, threadpool::worker::Worker};
+use crate::{error, error::Error, server::worker::Worker};
 use flume::{Receiver, Sender};
 use std::sync::{
     atomic::{AtomicUsize, Ordering::SeqCst},

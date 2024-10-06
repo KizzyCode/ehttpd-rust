@@ -15,6 +15,7 @@ platform:
 # The Rust feature matrix
 configuration:
   - --features=
+  - --features=server
 
 
 # General environment vars
