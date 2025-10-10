@@ -8,6 +8,6 @@ mod source;
 pub use crate::bytes::{
     data::Data,
     dataext::{DataParseExt, DataSliceExt},
-    sink::{AnySink, Sink},
-    source::{AnySource, Source},
+    sink::Sink,
+    source::Source,
 };

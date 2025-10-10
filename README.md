@@ -11,46 +11,64 @@
 Welcome to `ehttpd` 🎉
 
 `ehttpd` is a HTTP server library, which can be used to create custom HTTP server applications. It also offers an
-optional built-in threadpool-based server for simple applications (feature: `server`, disabled by default).
+optional threadpool-based server for simple applications (feature: `server`, disabled by default).
 
 
 ## Threadpool-based server
 The rationale behind the thread-based approach is that it is much easier to implement than `async/await`, subsequently
 requires less code, and is – in theory – less error prone.
 
-Furthermore, it also simplifies application development since the developer cannot accidentally stall the entire runtime
-with a single blocking call; being managed by the OS-scheduler, threads offer much stronger concurrency isolation
-guarantees (which can even be `nice`d or tweaked in most environments if desired).
-
-Note that, starting with version `0.9`, the built-in server is an optional feature and needs to be enabled using the
-`server` feature.
+Furthermore, it also simplifies application development as the developer cannot accidentally stall the entire runtime
+with a single blocking call. Since threads are managed and preempted by the OS-scheduler, they offer much stronger
+concurrency guarantees, and are usually more resilient against optimization issues or bugs.
 
 
 ### Performance
 While the thread-based approach is not the most efficient out there, it's not that bad either. Some `wrk` benchmarks:
 
-#### MacBook Pro (`M1 Pro`, `helloworld`, `v0.7.1`)
+#### MacBook Pro (`M1 Pro`, `v0.10.0`)
 ```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
   64 threads and 64 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     1.00ms  520.00us  27.29ms   95.96%
-    Req/Sec     1.02k   262.37     6.00k    94.81%
-  654074 requests in 10.10s, 32.44MB read
-Requests/sec:  64756.19
-Transfer/sec:      3.21MB
+    Latency   579.95us  474.19us  18.67ms   93.96%
+    Req/Sec     1.89k   222.89     3.09k    78.08%
+  1213288 requests in 10.11s, 60.17MB read
+Requests/sec: 120063.69
+Transfer/sec:      5.95MB
+
+$ wrk -t 64 -c 64 http://localhost:9999/testolope-nokeepalive
+Running 10s test @ http://127.0.0.1:9999/testolope-nokeepalive
+  64 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     3.21ms   13.35ms 163.31ms   97.39%
+    Req/Sec   351.54     84.78   500.00     89.42%
+  184617 requests in 10.10s, 12.50MB read
+  Socket errors: connect 64, read 3, write 0, timeout 0
+Requests/sec:  18278.08
+Transfer/sec:      1.24MB
 ```
 
-#### Old Linux Machine (`Intel(R) Core(TM) i5-2500K CPU @ 3.30GHz`, `helloworld-nokeepalive`, `v0.7.0`)
+#### Linux Machine (`Intel(R) Core(TM) i5-10400F CPU @ 2.90GHz`, `v0.10.0`)
 ```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
   64 threads and 64 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     2.22ms    1.00ms  60.93ms   95.30%
-    Req/Sec   435.19     56.94     1.00k    85.05%
-  278046 requests in 10.10s, 18.83MB read
-Requests/sec:  27528.42
-Transfer/sec:      1.86MB
+    Latency   194.38us  138.51us  11.24ms   82.56%
+    Req/Sec     5.44k   533.89     9.77k    78.54%
+  3496971 requests in 10.10s, 173.42MB read
+Requests/sec: 346246.07
+Transfer/sec:     17.17MB
+
+$ wrk -t 64 -c 64 http://localhost:9999/testolope-nokeepalive
+Running 10s test @ http://localhost:9999/testolope-nokeepalive
+  64 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   677.28us  355.42us  14.77ms   89.79%
+    Req/Sec     1.37k   156.80     2.87k    90.07%
+  877556 requests in 10.10s, 59.42MB read
+Requests/sec:  86883.46
+Transfer/sec:      5.88MB
 ```

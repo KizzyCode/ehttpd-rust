@@ -12,13 +12,13 @@ use std::io::Read;
 pub struct Request<'a, const HEADER_SIZE_MAX: usize = 4096> {
     /// The raw header bytes
     pub header: Data,
-    /// The range of the method part within the request line
+    /// The method part within the request line
     pub method: Data,
-    /// The range of the target part within the request line
+    /// The target part within the request line
     pub target: Data,
-    /// The range of the version part within the request line
+    /// The version part within the request line
     pub version: Data,
-    /// The ranges of the key/value fields within the header
+    /// The key/value fields within the header
     pub fields: Vec<(Data, Data)>,
     /// The connection stream
     pub stream: &'a mut Source,
@@ -42,11 +42,11 @@ impl<'a, const HEADER_SIZE_MAX: usize> Request<'a, HEADER_SIZE_MAX> {
         // Parse the fields
         let mut fields = Vec::new();
         while !header_parsing.eq(b"\r\n") {
-            // Parse field
             let (key, value) = Self::parse_field(&mut header_parsing)?;
             fields.push((key, value));
         }
 
+        // Init self
         Ok(Some(Self { header, method, target, version, fields, stream }))
     }
 
@@ -70,7 +70,7 @@ impl<'a, const HEADER_SIZE_MAX: usize> Request<'a, HEADER_SIZE_MAX> {
 
         // Create the RcVec
         header.shrink_to_fit();
-        let header = Data::new_arcvec(header);
+        let header = Data::from(header);
         Ok(header)
     }
     /// Parses the start line

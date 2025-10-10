@@ -25,12 +25,12 @@ pub struct Threadpool<T, const STACK_SIZE: usize> {
 }
 impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     /// Creates a new thread pool
-    pub fn new(worker_max: usize) -> Self
+    pub fn new(workers_max: usize) -> Self
     where
         T: Executable + Send + 'static,
     {
         // Create queues and counter
-        let (queue_tx, queue_rx_seed) = flume::bounded(worker_max);
+        let (queue_tx, queue_rx_seed) = flume::bounded(workers_max);
         let workers = Arc::new(AtomicUsize::default());
         Self { queue_tx, queue_rx_seed, workers }
     }

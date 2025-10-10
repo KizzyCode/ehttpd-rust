@@ -7,4 +7,4 @@ pub mod server;
 
 // Re-export the server for convenience if enabled
 #[cfg(feature = "server")]
-pub use crate::server::*;
+pub type Server = crate::server::Server<65_536>;

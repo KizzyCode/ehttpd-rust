@@ -23,12 +23,8 @@ impl DataSliceExt for Data {
     {
         // Get variant-dependent fields
         let current_range = match self {
-            Data::Empty => 0..0,
-            Data::Vec(vec) => 0..vec.len(),
             Data::Static(static_) => 0..static_.len(),
-            Data::Smolbuf { range, .. } => range.start..range.end,
-            Data::ArcVec { range, .. } => range.start..range.end,
-            Data::Other { range, .. } => range.start..range.end,
+            Data::Heap { range, .. } => range.start..range.end,
         };
 
         // Compute the bounds
@@ -52,12 +48,8 @@ impl DataSliceExt for Data {
 
         // Create the subref
         let clone = match self {
-            Data::Empty => Data::Empty,
-            Data::Vec(vec) => Data::Vec(vec[start..end].to_vec()),
             Data::Static(static_) => Data::Static(&static_[start..end]),
-            Data::ArcVec { backing, .. } => Data::ArcVec { backing: backing.clone(), range: start..end },
-            Data::Other { data, .. } => Data::Other { data: data.opaque_clone(), range: start..end },
-            Data::Smolbuf { buf, .. } => Data::Smolbuf { buf: *buf, range: start..end },
+            Data::Heap { data: heap, .. } => Data::Heap { data: heap.clone(), range: start..end },
         };
         Some(clone)
     }

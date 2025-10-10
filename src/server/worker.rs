@@ -3,15 +3,16 @@
 use crate::{error::Error, server::pool::Executable};
 use flume::Receiver;
 use std::{
+    hash::{BuildHasher, Hasher, RandomState},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc,
     },
     thread::Builder,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
-/// A thread
+/// A worker thread
 pub struct Worker<T, const STACK_SIZE: usize> {
     /// The receiving half of the job-queue
     queue_rx: Receiver<T>,
@@ -22,7 +23,7 @@ impl<T, const STACK_SIZE: usize> Worker<T, STACK_SIZE> {
     /// Timeout after which workers consider themselves idle or dispatch operations timeout
     const TIMEOUT: Duration = Duration::from_secs(4);
     /// The 1/N chance for a worker to terminate if idle
-    const TERMCHANCE: u128 = 8;
+    const TERMCHANCE: u64 = 7;
 
     /// Spawns a new worker and returns it's job queue
     pub fn spawn(queue_rx: Receiver<T>, worker: Arc<AtomicUsize>) -> Result<(), Error>
@@ -47,16 +48,17 @@ impl<T, const STACK_SIZE: usize> Worker<T, STACK_SIZE> {
         'runloop: loop {
             // Mark use as idle and wait for the next job
             let Ok(job) = self.queue_rx.recv_timeout(Self::TIMEOUT) else {
-                // Roll whether to continue or terminate
-                match Instant::now().elapsed().as_nanos() % Self::TERMCHANCE {
+                // Create a random hasher and use it to roll whether to continue or terminate
+                let hasher = RandomState::new().build_hasher();
+                match hasher.finish() % Self::TERMCHANCE {
                     0 => break 'runloop,
                     _ => continue 'runloop,
                 }
             };
 
             // Execute job
-            // Note: While jobs should not panic, it's ok if they do: The worker thread panics and gets unwound, but that
-            // should not cause any trouble
+            // Note: While jobs should not panic, it's usually okis if they do: The worker thread panics and gets
+            //  unwound, but that should not affect other workers or the main server thread
             job.exec();
         }
     }

@@ -1,13 +1,9 @@
 use ehttpd::bytes::{Data, DataSliceExt};
 
-/// Tests the data represenataion
-fn test_data(bytes: Data, as_ref: &[u8], as_debug: &str) {
+/// Tests the data representation
+fn test_data(bytes: Data, as_ref: &[u8]) {
     // Test data
     assert_eq!(bytes.as_ref(), as_ref);
-
-    // Validate debug representation
-    let debug = format!("{bytes:?}");
-    assert_eq!(debug, as_debug);
 
     // Validate cloning
     let clone = bytes.clone();
@@ -30,41 +26,20 @@ fn test_data(bytes: Data, as_ref: &[u8], as_debug: &str) {
 /// Tests empty data
 #[test]
 fn empty() {
-    let bytes = Data::Empty;
-    test_data(bytes, b"", "Empty")
+    let bytes = Data::new_empty();
+    test_data(bytes, b"")
 }
 
 /// Tests static data
 #[test]
 fn static_() {
-    let bytes = Data::Static(b"Testolope");
-    test_data(bytes, b"Testolope", "Static([84, 101, 115, 116, 111, 108, 111, 112, 101])")
-}
-
-/// Tests RcVec data
-#[test]
-fn rc_vec() {
-    let bytes = Data::new_arcvec(*b"Testolope");
-    test_data(bytes, b"Testolope", "RcVec { backing: [84, 101, 115, 116, 111, 108, 111, 112, 101], range: 0..9 }")
+    let bytes = Data::new_static(b"Testolope");
+    test_data(bytes, b"Testolope")
 }
 
 /// Tests other data
 #[test]
-fn other() {
-    /// Some other data
-    #[derive(Debug, Clone)]
-    struct StringData {
-        /// The underlying string
-        string: String,
-    }
-    impl AsRef<[u8]> for StringData {
-        fn as_ref(&self) -> &[u8] {
-            self.string.as_bytes()
-        }
-    }
-
-    // Test the bytes
-    let string_data = StringData { string: "Testolope".to_string() };
-    let bytes = Data::from_other(string_data);
-    test_data(bytes, b"Testolope", r#"Other { data: StringData { string: "Testolope" }, range: 0..9 }"#)
+fn heap() {
+    let bytes = Data::new("Testolope".as_bytes().to_vec());
+    test_data(bytes, b"Testolope")
 }

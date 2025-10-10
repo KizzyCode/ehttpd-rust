@@ -12,69 +12,110 @@ use crate::{
 };
 use std::{
     convert::Infallible,
-    io::BufReader,
+    io::{BufReader, BufWriter, Write},
     net::{TcpListener, ToSocketAddrs},
     sync::Arc,
 };
 
-/// An encapsulated connection "job" to pass to the thread pool
-struct ConnectionJob<T, const STACK_SIZE: usize> {
-    /// The connection handler
-    pub handler: T,
-    /// The receiving half of the stream
-    pub rx: Source,
-    /// The writing half of the stream
-    pub tx: Sink,
-    /// The thread-pool so that keep-alive connections can requeue themselves
-    pub threadpool: Arc<Threadpool<Self, STACK_SIZE>>,
+/// A connection handler
+#[derive(Clone)]
+enum Handler {
+    /// A `source,sink`-handler
+    SourceSink(Arc<dyn Fn(&mut Source, &mut Sink) -> bool + Send + Sync + 'static>),
+    /// A `request->response`-handler
+    RequestResponse(Arc<dyn Fn(Request) -> Response + Send + Sync + 'static>),
 }
-impl<T, const STACK_SIZE: usize> ConnectionJob<T, STACK_SIZE>
-where
-    T: Fn(&mut Source, &mut Sink) -> bool + Send + Sync + 'static,
-{
-    /// Handles the connection
-    fn handle(mut self) -> Result<(), Error> {
-        // Call the connection handler
-        if (self.handler)(&mut self.rx, &mut self.tx) {
-            // Reschedule the connection
-            let threadpool = self.threadpool.clone();
-            threadpool.dispatch(self)?;
+impl Handler {
+    /// Handles a given connection and returns whether the handler wants to be rescheduled (e.g. keep-alive)
+    pub fn exec(&self, source: &mut Source, sink: &mut Sink) -> bool {
+        match self {
+            Handler::SourceSink(handler) => handler(source, sink),
+            Handler::RequestResponse(handler) => Self::bridge_request_response(source, sink, handler.as_ref()),
         }
-        Ok(())
+    }
+
+    /// Bridges a `request->response`-handler to a source-sink pattern
+    fn bridge_request_response<F>(source: &mut Source, sink: &mut Sink, handler: &F) -> bool
+    where
+        F: Fn(Request) -> Response + ?Sized,
+    {
+        // Read request
+        let Ok(Some(request)) = Request::from_stream(source) else {
+            return false;
+        };
+
+        // Handle request and write response
+        let mut response = handler(request);
+        let Ok(_) = response.to_stream(sink) else {
+            return false;
+        };
+
+        // Mark connection as to-be-rescheduled
+        !response.has_connection_close()
     }
 }
-impl<T, const STACK_SIZE: usize> Executable for ConnectionJob<T, STACK_SIZE>
-where
-    T: Fn(&mut Source, &mut Sink) -> bool + Send + Sync + 'static,
-{
-    fn exec(self) {
-        let _ = self.handle();
+
+/// An encapsulated connection to pass to the thread pool
+struct Connection<const STACK_SIZE: usize> {
+    /// The connection handler
+    pub handler: Handler,
+    /// The receiving half of the stream
+    pub source: Source,
+    /// The writing half of the stream
+    pub sink: Sink,
+    /// The thread-pool so that keep-alive connections can requeue themselves
+    pub threadpool: Threadpool<Self, STACK_SIZE>,
+}
+impl<const STACK_SIZE: usize> Executable for Connection<STACK_SIZE> {
+    fn exec(mut self) {
+        // Call the connection handler and flush the output
+        let reschedule = self.handler.exec(&mut self.source, &mut self.sink);
+        if self.sink.flush().is_ok() && reschedule {
+            // Reschedule the connection
+            let threadpool = self.threadpool.clone();
+            let _ = threadpool.dispatch(self);
+        }
     }
 }
 
 /// A threadpool-based HTTP server
-pub struct Server<T, const STACK_SIZE: usize = 65_536> {
+pub struct Server<const STACK_SIZE: usize> {
     /// The thread pool to handle the incoming connections
-    threadpool: Arc<Threadpool<ConnectionJob<T, STACK_SIZE>, STACK_SIZE>>,
+    threadpool: Threadpool<Connection<STACK_SIZE>, STACK_SIZE>,
     /// The connection handler
-    handler: T,
+    handler: Handler,
 }
-impl<T, const STACK_SIZE: usize> Server<T, STACK_SIZE>
-where
-    T: Fn(&mut Source, &mut Sink) -> bool + Clone + Send + Sync + 'static,
-{
-    /// Creates a new server bound on the given address
-    pub fn new(worker_max: usize, handler: T) -> Self {
+impl<const STACK_SIZE: usize> Server<STACK_SIZE> {
+    /// Creates a new server with the given connection handler
+    pub fn with_source_sink<F>(workers_max: usize, source_sink_handler: F) -> Self
+    where
+        F: Fn(&mut Source, &mut Sink) -> bool + Send + Sync + 'static,
+    {
         // Create threadpool and init self
-        let threadpool: Threadpool<_, STACK_SIZE> = Threadpool::new(worker_max);
-        Self { threadpool: Arc::new(threadpool), handler }
+        let threadpool: Threadpool<_, STACK_SIZE> = Threadpool::new(workers_max);
+        let handler = Handler::SourceSink(Arc::new(source_sink_handler));
+        Self { threadpool, handler }
+    }
+    /// Creates a new server with the given connection handler
+    pub fn with_request_response<F>(workers_max: usize, request_response_handler: F) -> Self
+    where
+        F: Fn(Request) -> Response + Send + Sync + 'static,
+    {
+        // Create threadpool and init self
+        let threadpool: Threadpool<_, STACK_SIZE> = Threadpool::new(workers_max);
+        let handler = Handler::RequestResponse(Arc::new(request_response_handler));
+        Self { threadpool, handler }
     }
 
-    /// Dispatches a connection
-    pub fn dispatch(&self, rx: Source, tx: Sink) -> Result<(), Error> {
+    /// Manually dispatches a connection
+    pub fn dispatch(&self, source: Source, sink: Sink) -> Result<(), Error> {
         // Create and dispatch the job
-        let job = ConnectionJob { handler: self.handler.clone(), rx, tx, threadpool: self.threadpool.clone() };
-        self.threadpool.dispatch(job)
+        self.threadpool.dispatch(Connection {
+            handler: self.handler.clone(),
+            source,
+            sink,
+            threadpool: self.threadpool.clone(),
+        })
     }
 
     /// Listens on the given address and accepts forever
@@ -86,34 +127,13 @@ where
         let socket = TcpListener::bind(address)?;
         loop {
             // Accept and prepare connection
-            let (stream, _) = socket.accept()?;
-            let tx = stream.try_clone()?;
-            let rx = BufReader::new(stream);
+            let (source, _) = socket.accept()?;
+            let sink = source.try_clone()?;
 
             // Dispatch connection
-            let rx = Source::from_other(rx);
-            self.dispatch(rx, tx.into())?;
+            let source = BufReader::new(source);
+            let sink = BufWriter::new(sink);
+            self.dispatch(source.into(), sink.into())?;
         }
     }
-}
-
-/// An adapter to create a `source,sink`-handler on top of a `request->response`-handler
-#[must_use]
-pub fn reqresp<F>(source: &mut Source, sink: &mut Sink, handler: F) -> bool
-where
-    F: Fn(Request) -> Response + Send + Sync + 'static,
-{
-    // Read request
-    let Ok(Some(request)) = Request::from_stream(source) else {
-        return false;
-    };
-
-    // Handle request and write response
-    let mut response = handler(request);
-    let Ok(_) = response.to_stream(sink) else {
-        return false;
-    };
-
-    // Mark connection as to-be-rescheduled
-    !response.has_connection_close()
 }

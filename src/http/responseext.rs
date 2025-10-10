@@ -213,6 +213,6 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
     }
 
     fn make_head(&mut self) {
-        self.body = Source::Empty;
+        self.body = Source::default();
     }
 }

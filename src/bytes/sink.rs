@@ -1,110 +1,70 @@
 //! An owned, type-abstract writeable data sink
 
 use std::{
+    any::Any,
     fmt::{Debug, Formatter},
     fs::File,
-    io::{self, Write},
+    io::{self, BufWriter, Write},
     net::TcpStream,
-    panic::UnwindSafe,
 };
 
-/// An umbrella trait to combine `Write`, `Debug` and `Send` which are required for `Sink`
-pub trait AnySink {
-    /// `self` as implementor of `Write`
-    fn as_write_mut(&mut self) -> &mut dyn Write;
-    /// `self` as implementor of `Debug`
-    fn as_debug(&self) -> &dyn Debug;
-}
-impl<T> AnySink for T
-where
-    T: Write + Debug + Send,
-{
-    fn as_write_mut(&mut self) -> &mut dyn Write {
-        self
-    }
-    fn as_debug(&self) -> &dyn Debug {
-        self
-    }
-}
-
 /// An owned, type-abstract data sink
-///
-/// # Rationale
-/// The idea behind this type is to provide some dynamic polymorphism, but with some "fast-paths" for common types to
-/// avoid the overhead of boxing and vtable-lookup (while the latter is probable negligible, the former may be significant
-/// overhead if all you want is to write to some preallocated memory).
-#[non_exhaustive]
-pub enum Sink {
-    /// A writer which will move data into the void
-    Null,
-    /// A vector sink
-    Vector(Vec<u8>),
-    /// A file
-    File(File),
-    /// A TCP stream
-    TcpStream(TcpStream),
-    /// A catch-all/opaque variant for all types that cannot be covered by the enum's specific variants
-    Other(Box<dyn AnySink + Send + UnwindSafe>),
+pub struct Sink {
+    /// The underlying writer
+    sink: Box<dyn Any + Send + Sync>,
+    /// Vtable mapper to expose the underlying `Write` trait
+    vtable_as_writer: fn(&mut Box<dyn Any + Send + Sync>) -> &mut dyn Write,
+    /// Vtable mapper to expose the underlying `Debug` trait
+    vtable_as_debug: fn(&Box<dyn Any + Send + Sync>) -> &dyn Debug,
 }
 impl Sink {
-    /// Creates a new catch-all/opaque variant from a typed object by moving it to the heap
-    pub fn from_other<T>(typed: T) -> Self
+    /// Wraps the given sink
+    pub fn new<T>(sink: T) -> Self
     where
-        T: AnySink + Send + UnwindSafe + 'static,
+        T: Write + Debug + Send + Sync + 'static,
     {
-        let boxed = Box::new(typed);
-        Self::Other(boxed)
+        Self {
+            sink: Box::new(sink),
+            vtable_as_writer: |sink| sink.downcast_mut::<T>().expect("vtable type confusion"),
+            vtable_as_debug: |sink| sink.downcast_ref::<T>().expect("vtable type confusion"),
+        }
     }
 }
 impl Write for Sink {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        match self {
-            Sink::Null => io::sink().write(buf),
-            Sink::Vector(vector) => vector.write(buf),
-            Sink::File(file) => file.write(buf),
-            Sink::TcpStream(tcp_stream) => tcp_stream.write(buf),
-            Sink::Other(other) => other.as_write_mut().write(buf),
-        }
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        (self.vtable_as_writer)(&mut self.sink).write(buf)
     }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        match self {
-            Sink::Null => Ok(()),
-            Sink::Vector(vector) => vector.flush(),
-            Sink::File(file) => file.flush(),
-            Sink::TcpStream(tcp_stream) => tcp_stream.flush(),
-            Sink::Other(other) => other.as_write_mut().flush(),
-        }
+    fn flush(&mut self) -> io::Result<()> {
+        (self.vtable_as_writer)(&mut self.sink).flush()
     }
 }
 impl Debug for Sink {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        match self {
-            Self::Null => f.debug_tuple("Null").finish(),
-            Self::Vector(arg0) => f.debug_tuple("Vector").field(arg0).finish(),
-            Self::File(arg0) => f.debug_tuple("File").field(arg0).finish(),
-            Self::TcpStream(arg0) => f.debug_tuple("TcpStream").field(arg0).finish(),
-            Self::Other(other) => f.debug_tuple("Other").field(other.as_debug()).finish(),
-        }
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let writer = (self.vtable_as_debug)(&self.sink);
+        f.debug_struct("AnyWriter")
+            .field("writer", writer)
+            .field("as_writer", &self.vtable_as_writer)
+            .field("as_debug", &self.vtable_as_debug)
+            .finish()
     }
 }
 impl Default for Sink {
     fn default() -> Self {
-        Self::Null
+        Self::new(io::empty())
     }
 }
 impl From<Vec<u8>> for Sink {
-    fn from(value: Vec<u8>) -> Self {
-        Self::Vector(value)
+    fn from(sink: Vec<u8>) -> Self {
+        Self::new(sink)
     }
 }
-impl From<File> for Sink {
-    fn from(value: File) -> Self {
-        Self::File(value)
+impl From<BufWriter<File>> for Sink {
+    fn from(sink: BufWriter<File>) -> Self {
+        Self::new(sink)
     }
 }
-impl From<TcpStream> for Sink {
-    fn from(value: TcpStream) -> Self {
-        Self::TcpStream(value)
+impl From<BufWriter<TcpStream>> for Sink {
+    fn from(sink: BufWriter<TcpStream>) -> Self {
+        Self::new(sink)
     }
 }
