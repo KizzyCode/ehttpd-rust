@@ -6,7 +6,7 @@ mod worker;
 
 use crate::bytes::{Sink, Source};
 use crate::error::Error;
-use crate::http::{Request, Response};
+use crate::http::{Request, Response, ResponseExt};
 use crate::server::pool::{Executable, Threadpool};
 use std::convert::Infallible;
 use std::io::{BufReader, BufWriter, Write};
@@ -40,8 +40,15 @@ impl Handler {
             return false;
         };
 
-        // Handle request and write response
+        // Handle the request accordingly
+        let is_head = request.method.as_ref().eq_ignore_ascii_case(b"HEAD");
         let mut response = handler(request);
+        if is_head {
+            // Drop body for HEAD requests
+            response.make_head();
+        }
+
+        // Write response
         let Ok(_) = response.to_stream(sink) else {
             return false;
         };
