@@ -1,12 +1,10 @@
 //! An owned, type-abstract writeable data sink
 
-use std::{
-    any::Any,
-    fmt::{Debug, Formatter},
-    fs::File,
-    io::{self, BufWriter, Write},
-    net::TcpStream,
-};
+use std::any::Any;
+use std::fmt::{Debug, Formatter};
+use std::fs::File;
+use std::io::{self, BufWriter, Write};
+use std::net::TcpStream;
 
 /// An owned, type-abstract data sink
 pub struct Sink {

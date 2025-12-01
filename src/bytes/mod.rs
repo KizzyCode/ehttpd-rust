@@ -5,9 +5,7 @@ mod dataext;
 mod sink;
 mod source;
 
-pub use crate::bytes::{
-    data::Data,
-    dataext::{DataParseExt, DataSliceExt},
-    sink::Sink,
-    source::Source,
-};
+pub use crate::bytes::data::Data;
+pub use crate::bytes::dataext::{DataParseExt, DataSliceExt};
+pub use crate::bytes::sink::Sink;
+pub use crate::bytes::source::Source;

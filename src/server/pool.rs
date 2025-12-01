@@ -1,11 +1,12 @@
 //! A simple threadpool implementation
 
-use crate::{error, error::Error, server::worker::Worker};
+use crate::error;
+use crate::error::Error;
+use crate::server::worker::Worker;
 use flume::{Receiver, Sender};
-use std::sync::{
-    atomic::{AtomicUsize, Ordering::SeqCst},
-    Arc,
-};
+use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering::SeqCst;
 
 /// A trait for functions etc. that can be executed/called, similar to `FnOnce()`
 pub trait Executable {

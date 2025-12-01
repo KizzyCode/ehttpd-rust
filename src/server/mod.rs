@@ -4,18 +4,14 @@
 mod pool;
 mod worker;
 
-use crate::{
-    bytes::{Sink, Source},
-    error::Error,
-    http::{Request, Response},
-    server::pool::{Executable, Threadpool},
-};
-use std::{
-    convert::Infallible,
-    io::{BufReader, BufWriter, Write},
-    net::{TcpListener, ToSocketAddrs},
-    sync::Arc,
-};
+use crate::bytes::{Sink, Source};
+use crate::error::Error;
+use crate::http::{Request, Response};
+use crate::server::pool::{Executable, Threadpool};
+use std::convert::Infallible;
+use std::io::{BufReader, BufWriter, Write};
+use std::net::{TcpListener, ToSocketAddrs};
+use std::sync::Arc;
 
 /// A connection handler
 #[derive(Clone)]

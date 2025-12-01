@@ -1,12 +1,10 @@
 //! An owned, type-abstract data type
 
-use std::{
-    any::Any,
-    fmt::{Debug, Display, Formatter, Write},
-    mem,
-    ops::{Deref, Range},
-    sync::Arc,
-};
+use std::any::Any;
+use std::fmt::{Debug, Display, Formatter, Write};
+use std::mem;
+use std::ops::{Deref, Range};
+use std::sync::Arc;
 
 /// A type-abstract owned data type
 ///

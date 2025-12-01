@@ -1,16 +1,11 @@
 //! Extension traits for `http::Response`
 
-use crate::{
-    bytes::{Data, Source},
-    error::Error,
-    http::response::Response,
-};
-use std::{
-    borrow::BorrowMut,
-    fs::File,
-    io::{Seek, SeekFrom},
-    str,
-};
+use crate::bytes::{Data, Source};
+use crate::error::Error;
+use crate::http::response::Response;
+use std::fs::File;
+use std::io::{BufReader, Seek, SeekFrom};
+use std::str;
 
 /// Some HTTP response extensions
 pub trait ResponseExt
@@ -79,7 +74,7 @@ where
     /// `15`, the content length is set to `8`.
     fn set_body_file<T>(&mut self, file: T) -> Result<(), Error>
     where
-        T: Into<Source> + BorrowMut<File>;
+        T: Into<File>;
 
     /// Turns the current `GET`-response into a `HEAD`-response by discarding the body without modifying content length
     /// etc.
@@ -191,24 +186,24 @@ impl<const HEADER_SIZE_MAX: usize> ResponseExt for Response<HEADER_SIZE_MAX> {
         self.set_content_length(data.len() as u64);
         self.body = Source::from(data);
     }
-    fn set_body_file<T>(&mut self, mut file: T) -> Result<(), Error>
+    fn set_body_file<T>(&mut self, file: T) -> Result<(), Error>
     where
-        T: Into<Source> + BorrowMut<File>,
+        T: Into<File>,
     {
         // Get the current position and the total length
-        let file_real = file.borrow_mut();
+        let mut file = file.into();
         #[allow(clippy::seek_from_current)]
-        let pos = file_real.seek(SeekFrom::Current(0))?;
-        let len = file_real.seek(SeekFrom::End(0))?;
+        let pos = file.seek(SeekFrom::Current(0))?;
+        let len = file.seek(SeekFrom::End(0))?;
 
         // Recover the original position and set the length
         if pos != len {
-            file_real.seek(SeekFrom::Start(pos))?;
+            file.seek(SeekFrom::Start(pos))?;
         }
         self.set_content_length(len - pos);
 
         // Set the body
-        self.body = file.into();
+        self.body = BufReader::new(file).into();
         Ok(())
     }
 

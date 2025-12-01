@@ -1,16 +1,14 @@
 //! A thread worker
 
-use crate::{error::Error, server::pool::Executable};
+use crate::error::Error;
+use crate::server::pool::Executable;
 use flume::Receiver;
-use std::{
-    hash::{BuildHasher, Hasher, RandomState},
-    sync::{
-        atomic::{AtomicUsize, Ordering::SeqCst},
-        Arc,
-    },
-    thread::Builder,
-    time::Duration,
-};
+use std::hash::{BuildHasher, Hasher, RandomState};
+use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering::SeqCst;
+use std::thread::Builder;
+use std::time::Duration;
 
 /// A worker thread
 pub struct Worker<T, const STACK_SIZE: usize> {

@@ -1,13 +1,11 @@
 //! An owned, type-abstract readable data source
 
 use crate::bytes::data::Data;
-use std::{
-    any::Any,
-    fmt::{Debug, Formatter},
-    fs::File,
-    io::{BufReader, Cursor, Read},
-    net::TcpStream,
-};
+use std::any::Any;
+use std::fmt::{Debug, Formatter};
+use std::fs::File;
+use std::io::{BufReader, Cursor, Read};
+use std::net::TcpStream;
 
 /// An owned, type-abstract data source
 pub struct Source {

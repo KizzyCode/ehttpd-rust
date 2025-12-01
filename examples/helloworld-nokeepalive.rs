@@ -1,9 +1,7 @@
 #[cfg(feature = "server")]
 fn main() {
-    use ehttpd::{
-        http::{Response, ResponseExt},
-        Server,
-    };
+    use ehttpd::Server;
+    use ehttpd::http::{Response, ResponseExt};
 
     // Create a server that listens at [::]:9999 with up to 2048 worker threads under load if necessary
     let server = Server::with_request_response(2048, |_| {

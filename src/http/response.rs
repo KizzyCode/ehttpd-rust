@@ -1,9 +1,7 @@
 //! A HTTP request
 
-use crate::{
-    bytes::{Data, Source},
-    error::Error,
-};
+use crate::bytes::{Data, Source};
+use crate::error::Error;
 use std::io::{self, Write};
 
 /// A HTTP response

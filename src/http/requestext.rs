@@ -1,7 +1,12 @@
 //! Extension traits for `http::Request`
 
-use crate::{bytes::Data, error, error::Error, http::Request};
-use std::{io::Read, path::Path, str};
+use crate::bytes::Data;
+use crate::error;
+use crate::error::Error;
+use crate::http::Request;
+use std::io::Read;
+use std::path::Path;
+use std::str;
 
 /// Some HTTP request extensions
 pub trait RequestExt {
@@ -26,7 +31,8 @@ pub trait RequestExt {
 impl<'a, const HEADER_SIZE_MAX: usize> RequestExt for Request<'a, HEADER_SIZE_MAX> {
     #[cfg(target_family = "unix")]
     fn target_path(&self) -> Option<&Path> {
-        use std::{ffi::OsStr, os::unix::ffi::OsStrExt};
+        use std::ffi::OsStr;
+        use std::os::unix::ffi::OsStrExt;
 
         // Create the path directly without going via `str`
         let target = OsStr::from_bytes(&self.target);

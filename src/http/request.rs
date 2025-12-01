@@ -1,10 +1,8 @@
 //! A HTTP request
 
-use crate::{
-    bytes::{Data, DataParseExt, Source},
-    error,
-    error::Error,
-};
+use crate::bytes::{Data, DataParseExt, Source};
+use crate::error;
+use crate::error::Error;
 use std::io::Read;
 
 /// A HTTP request
