@@ -3,7 +3,6 @@
 use crate::bytes::{Data, ParseExt, Source};
 use crate::error::{Error, error};
 use std::io::Read;
-#[cfg(target_family = "unix")]
 use std::path::Path;
 
 /// A HTTP request
