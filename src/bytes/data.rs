@@ -3,7 +3,7 @@
 use std::any::Any;
 use std::fmt::{Debug, Display, Formatter, Write};
 use std::mem;
-use std::ops::{Deref, Range};
+use std::ops::{Bound, Deref, Range, RangeBounds};
 use std::sync::Arc;
 
 /// A type-abstract owned data type
@@ -54,6 +54,47 @@ impl Data {
     /// Creates a static data variant
     pub const fn new_static(static_: &'static [u8]) -> Self {
         Self::Static(static_)
+    }
+
+    /// Creates a lifetime-independent subdata copy/refcopy over `self`
+    ///
+    /// # Note
+    /// This method uses the cheapest way to clone the data by e.g. performing an `Rc::clone` on `Self::RcVec`
+    pub fn subcopy<T>(&self, range: T) -> Option<Self>
+    where
+        T: RangeBounds<usize>,
+    {
+        // Get variant-dependent fields
+        let current_range = match self {
+            Data::Static(static_) => 0..static_.len(),
+            Data::Heap { range, .. } => range.start..range.end,
+        };
+
+        // Compute the bounds
+        let start = match range.start_bound() {
+            Bound::Included(start) => *start,
+            Bound::Excluded(_) => unreachable!("excluded bounds are invalid for range starts"),
+            Bound::Unbounded => 0,
+        };
+        let end = match range.end_bound() {
+            Bound::Included(before_end) => before_end.saturating_add(1),
+            Bound::Excluded(end) => *end,
+            Bound::Unbounded => self.len(),
+        };
+
+        // Make the bounds relative to our current slice and validate them
+        let start = current_range.start.checked_add(start)?;
+        let end = current_range.start.checked_add(end)?;
+        if start > current_range.end || end > current_range.end {
+            return None;
+        }
+
+        // Create the subref
+        let clone = match self {
+            Data::Static(static_) => Data::Static(&static_[start..end]),
+            Data::Heap { data: heap, .. } => Data::Heap { data: heap.clone(), range: start..end },
+        };
+        Some(clone)
     }
 }
 impl Deref for Data {

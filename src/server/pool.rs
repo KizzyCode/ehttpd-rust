@@ -1,7 +1,6 @@
 //! A simple threadpool implementation
 
-use crate::error;
-use crate::error::Error;
+use crate::error::{Error, error};
 use crate::server::worker::Worker;
 use flume::{Receiver, Sender};
 use std::sync::Arc;

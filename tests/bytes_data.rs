@@ -1,4 +1,4 @@
-use ehttpd::bytes::{Data, DataSliceExt};
+use ehttpd::bytes::Data;
 
 /// Tests the data representation
 fn test_data(bytes: Data, as_ref: &[u8]) {

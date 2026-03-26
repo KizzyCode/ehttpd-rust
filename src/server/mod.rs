@@ -6,7 +6,7 @@ mod worker;
 
 use crate::bytes::{Sink, Source};
 use crate::error::Error;
-use crate::http::{Request, Response, ResponseExt};
+use crate::http::{Request, Response};
 use crate::server::pool::{Executable, Threadpool};
 use std::convert::Infallible;
 use std::io::{BufReader, BufWriter, Write};

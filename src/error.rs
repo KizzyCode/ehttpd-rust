@@ -2,14 +2,12 @@
 
 use std::backtrace::{Backtrace, BacktraceStatus};
 use std::convert::Infallible;
-use std::error;
 use std::fmt::{self, Display, Formatter};
 use std::num::ParseIntError;
 use std::ops::Deref;
 use std::str::Utf8Error;
 
 /// Creates a new error
-#[macro_export]
 macro_rules! error {
     (with: $error:expr, $($arg:tt)*) => {{
         let error = format!($($arg)*);
@@ -21,6 +19,8 @@ macro_rules! error {
         $crate::error::Error::new(error, None)
     }};
 }
+// Re-export macro within crate
+pub(crate) use error;
 
 /// The crates error type
 #[derive(Debug)]
@@ -28,14 +28,14 @@ pub struct Error {
     /// The error description
     pub error: String,
     /// The underlying error
-    pub source: Option<Box<dyn error::Error + Send>>,
+    pub source: Option<Box<dyn std::error::Error + Send>>,
     /// The backtrace
     pub backtrace: Backtrace,
 }
 impl Error {
     /// Creates a new error
     #[doc(hidden)]
-    pub fn new(error: String, source: Option<Box<dyn error::Error + Send>>) -> Self {
+    pub fn new(error: String, source: Option<Box<dyn std::error::Error + Send>>) -> Self {
         let backtrace = Backtrace::capture();
         Self { error, source, backtrace }
     }
@@ -58,7 +58,7 @@ impl Display for Error {
     }
 }
 impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         let boxed = self.source.as_ref()?;
         Some(boxed.deref())
     }

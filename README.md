@@ -26,49 +26,49 @@ concurrency guarantees, and are usually more resilient against optimization issu
 ### Performance
 While the thread-based approach is not the most efficient out there, it's not that bad either. Some `wrk` benchmarks:
 
-#### MacBook Pro (`M1 Pro`, `v0.10.0`)
+#### MacBook Pro (`M1 Pro`, `v0.12.0`)
 ```ignore
 $ wrk -t 64 -c 64 http://localhost:9999/testolope
 Running 10s test @ http://localhost:9999/testolope
   64 threads and 64 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency   579.95us  474.19us  18.67ms   93.96%
-    Req/Sec     1.89k   222.89     3.09k    78.08%
-  1213288 requests in 10.11s, 60.17MB read
-Requests/sec: 120063.69
-Transfer/sec:      5.95MB
-
-$ wrk -t 64 -c 64 http://localhost:9999/testolope-nokeepalive
-Running 10s test @ http://127.0.0.1:9999/testolope-nokeepalive
-  64 threads and 64 connections
-  Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     3.21ms   13.35ms 163.31ms   97.39%
-    Req/Sec   351.54     84.78   500.00     89.42%
-  184617 requests in 10.10s, 12.50MB read
-  Socket errors: connect 64, read 3, write 0, timeout 0
-Requests/sec:  18278.08
-Transfer/sec:      1.24MB
-```
-
-#### Linux Machine (`Intel(R) Core(TM) i5-10400F CPU @ 2.90GHz`, `v0.10.0`)
-```ignore
-$ wrk -t 64 -c 64 http://localhost:9999/testolope
-Running 10s test @ http://localhost:9999/testolope
-  64 threads and 64 connections
-  Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency   194.38us  138.51us  11.24ms   82.56%
-    Req/Sec     5.44k   533.89     9.77k    78.54%
-  3496971 requests in 10.10s, 173.42MB read
-Requests/sec: 346246.07
-Transfer/sec:     17.17MB
+    Latency     0.85ms   85.72us   6.62ms   92.48%
+    Req/Sec     1.17k    28.34     1.25k    87.08%
+  754610 requests in 10.10s, 37.42MB read
+Requests/sec:  74713.82
+Transfer/sec:      3.71MB
 
 $ wrk -t 64 -c 64 http://localhost:9999/testolope-nokeepalive
 Running 10s test @ http://localhost:9999/testolope-nokeepalive
   64 threads and 64 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency   677.28us  355.42us  14.77ms   89.79%
-    Req/Sec     1.37k   156.80     2.87k    90.07%
-  877556 requests in 10.10s, 59.42MB read
-Requests/sec:  86883.46
-Transfer/sec:      5.88MB
+    Latency     1.96ms    4.81ms  89.48ms   98.57%
+    Req/Sec   303.72     62.34   353.00     90.42%
+  117823 requests in 10.06s, 7.98MB read
+  Socket errors: connect 64, read 0, write 0, timeout 0
+Requests/sec:  11716.92
+Transfer/sec:    812.40KB
+```
+
+#### Linux Machine (`Intel(R) Core(TM) i5-10400F CPU @ 2.90GHz`, `v0.12.0`)
+```ignore
+$ wrk -t 64 -c 64 http://localhost:9999/testolope
+Running 10s test @ http://localhost:9999/testolope
+  64 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   188.08us  177.57us  12.10ms   90.95%
+    Req/Sec     5.93k     1.03k   10.34k    77.99%
+  3815863 requests in 10.10s, 189.23MB read
+Requests/sec: 377809.30
+Transfer/sec:     18.74MB
+
+$ wrk -t 64 -c 64 http://localhost:9999/testolope-nokeepalive
+Running 10s test @ http://localhost:9999/testolope-nokeepalive
+  64 threads and 64 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   611.05us  225.83us   9.18ms   76.85%
+    Req/Sec     1.48k    75.48     2.11k    76.26%
+  951970 requests in 10.10s, 64.46MB read
+Requests/sec:  94255.61
+Transfer/sec:      6.38MB
 ```

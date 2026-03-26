@@ -1,7 +1,7 @@
 #[cfg(feature = "server")]
 fn main() {
     use ehttpd::Server;
-    use ehttpd::http::{Response, ResponseExt};
+    use ehttpd::http::Response;
 
     // Create a server that listens at [::]:9999 with up to 2048 worker threads under load if necessary
     let server = Server::with_request_response(2048, |_| {
@@ -11,7 +11,8 @@ fn main() {
     });
 
     // Handle incoming connections
-    server.accept("[::]:9999").expect("server failed");
+    let Err(e) = server.accept("[::]:9999");
+    panic!("Server failed: {e}");
 }
 
 #[cfg(not(feature = "server"))]
