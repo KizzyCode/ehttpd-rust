@@ -1,7 +1,8 @@
 //! A HTTP request
 
 use crate::bytes::{Data, ParseExt, Source};
-use crate::error::{Error, error};
+use crate::err;
+use crate::error::Error;
 use std::io::Read;
 use std::path::Path;
 
@@ -63,7 +64,7 @@ impl<'a, const HEADER_SIZE_MAX: usize> Request<'a, HEADER_SIZE_MAX> {
                 break 'read_loop;
             }
             if header.len() == HEADER_SIZE_MAX {
-                return Err(error!("HTTP header is too large"));
+                return Err(err!("HTTP header is too large"));
             }
         }
 
@@ -76,16 +77,16 @@ impl<'a, const HEADER_SIZE_MAX: usize> Request<'a, HEADER_SIZE_MAX> {
     #[allow(clippy::type_complexity)]
     fn parse_start_line(header: &mut Data) -> Result<(Data, Data, Data), Error> {
         // Split the header line
-        let mut line = header.split_off(b"\r\n").ok_or_else(|| error!("Truncated HTTP start line: {header}"))?;
-        let method = line.split_off(b" ").ok_or_else(|| error!("Invalid HTTP start line: {line}"))?;
-        let target = line.split_off(b" ").ok_or_else(|| error!("Invalid HTTP start line: {line}"))?;
+        let mut line = header.split_off(b"\r\n").ok_or_else(|| err!("Truncated HTTP start line: {header}"))?;
+        let method = line.split_off(b" ").ok_or_else(|| err!("Invalid HTTP start line: {line}"))?;
+        let target = line.split_off(b" ").ok_or_else(|| err!("Invalid HTTP start line: {line}"))?;
         Ok((method, target, line))
     }
     /// Parses a header field
     fn parse_field(header: &mut Data) -> Result<(Data, Data), Error> {
         // Parse the field
-        let mut line = header.split_off(b"\r\n").ok_or_else(|| error!("Truncated HTTP header field: {header}"))?;
-        let key = line.split_off(b":").ok_or_else(|| error!("Invalid HTTP header field: {line}"))?;
+        let mut line = header.split_off(b"\r\n").ok_or_else(|| err!("Truncated HTTP header field: {header}"))?;
+        let key = line.split_off(b":").ok_or_else(|| err!("Invalid HTTP header field: {line}"))?;
 
         // Trim the field values
         let key = key.trim();
@@ -167,7 +168,7 @@ impl<'a, const HEADER_SIZE_MAX: usize> Request<'a, HEADER_SIZE_MAX> {
         // Validate content length
         let true = content_length <= content_length_max else {
             // Body is too large
-            return Err(error!("HTTP body is too large"));
+            return Err(err!("HTTP body is too large"));
         };
 
         // Read body
@@ -175,7 +176,7 @@ impl<'a, const HEADER_SIZE_MAX: usize> Request<'a, HEADER_SIZE_MAX> {
         let body_len = self.stream.take(content_length).read_to_end(&mut body)? as u64;
         let true = body_len == content_length else {
             // Truncated body
-            return Err(error!("Truncated HTTP body"))?;
+            return Err(err!("Truncated HTTP body"))?;
         };
 
         // Return body

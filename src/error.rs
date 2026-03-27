@@ -8,7 +8,8 @@ use std::ops::Deref;
 use std::str::Utf8Error;
 
 /// Creates a new error
-macro_rules! error {
+#[macro_export]
+macro_rules! err {
     (with: $error:expr, $($arg:tt)*) => {{
         let error = format!($($arg)*);
         let source = Box::new($error);
@@ -19,8 +20,6 @@ macro_rules! error {
         $crate::error::Error::new(error, None)
     }};
 }
-// Re-export macro within crate
-pub(crate) use error;
 
 /// The crates error type
 #[derive(Debug)]
@@ -65,17 +64,17 @@ impl std::error::Error for Error {
 }
 impl From<std::io::Error> for Error {
     fn from(value: std::io::Error) -> Self {
-        error!(with: value, "An I/O error occurred")
+        err!(with: value, "An I/O error occurred")
     }
 }
 impl From<Utf8Error> for Error {
     fn from(value: Utf8Error) -> Self {
-        error!(with: value, "Value is not valid UTF-8")
+        err!(with: value, "Value is not valid UTF-8")
     }
 }
 impl From<ParseIntError> for Error {
     fn from(value: ParseIntError) -> Self {
-        error!(with: value, "Value is not a valid integer")
+        err!(with: value, "Value is not a valid integer")
     }
 }
 impl From<Infallible> for Error {

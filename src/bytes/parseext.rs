@@ -1,7 +1,8 @@
 //! Some useful extensions for data types
 
 use crate::bytes::Data;
-use crate::error::{Error, error};
+use crate::err;
+use crate::error::Error;
 use std::str::FromStr;
 
 /// Some parsing extensions
@@ -54,7 +55,7 @@ impl ParseExt for Data {
     {
         // Parse data literal
         let str_ = str::from_utf8(self)?;
-        str_.parse::<Type>().map_err(|e| error!(with: e, "failed to parse data"))
+        str_.parse::<Type>().map_err(|e| err!(with: e, "failed to parse data"))
     }
 }
 impl ParseExt for &[u8] {
@@ -81,6 +82,6 @@ impl ParseExt for &[u8] {
     {
         // Parse data literal
         let str_ = str::from_utf8(self)?;
-        str_.parse::<Type>().map_err(|e| error!(with: e, "failed to parse data"))
+        str_.parse::<Type>().map_err(|e| err!(with: e, "failed to parse data"))
     }
 }

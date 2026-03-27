@@ -1,6 +1,7 @@
 //! A simple threadpool implementation
 
-use crate::error::{Error, error};
+use crate::err;
+use crate::error::Error;
 use crate::server::worker::Worker;
 use flume::{Receiver, Sender};
 use std::sync::Arc;
@@ -52,7 +53,7 @@ impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
         }
 
         // Dispatch the job
-        self.queue_tx.try_send(job).map_err(|_| error!("Threadpool is congested"))?;
+        self.queue_tx.try_send(job).map_err(|_| err!("Threadpool is congested"))?;
         Ok(())
     }
 
@@ -63,7 +64,7 @@ impl<T, const STACK_SIZE: usize> Threadpool<T, STACK_SIZE> {
     {
         // Check if we've reached the hard limit
         if Some(self.workers.load(SeqCst)) >= self.queue_tx.capacity() {
-            return Err(error!("Worker limit exceeded"));
+            return Err(err!("Worker limit exceeded"));
         }
 
         // Spawn the worker
