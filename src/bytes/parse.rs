@@ -6,12 +6,12 @@ use crate::error::Error;
 use std::str::FromStr;
 
 /// Some parsing extensions
-pub trait ParseExt
+pub trait Parse
 where
     Self: Sized,
 {
-    /// Splits `self` on the first occurrence of `pat` and returns prefix before delimiter; `self` is updated to hold the
-    /// remaining suffix after `pat`
+    /// Splits `self` on the first occurrence of `pat` and returns prefix before delimiter; `self` is updated to hold
+    /// the remaining suffix after `pat`
     ///
     /// # Note
     /// This method uses the cheapest way to clone the data by e.g. performing an `Rc::clone` on `Self::RcVec`
@@ -26,7 +26,7 @@ where
         Type: FromStr,
         Type::Err: std::error::Error + Send + 'static;
 }
-impl ParseExt for Data {
+impl Parse for Data {
     fn split_off(&mut self, pat: &[u8]) -> Option<Self> {
         for (offset, haystack) in self.windows(pat.len()).enumerate() {
             // Check for match
@@ -58,7 +58,7 @@ impl ParseExt for Data {
         str_.parse::<Type>().map_err(|e| err!(with: e, "failed to parse data"))
     }
 }
-impl ParseExt for &[u8] {
+impl Parse for &[u8] {
     fn split_off(&mut self, pat: &[u8]) -> Option<Self> {
         for (offset, haystack) in self.windows(pat.len()).enumerate() {
             // Check for match
