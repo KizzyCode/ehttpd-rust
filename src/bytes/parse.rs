@@ -53,9 +53,8 @@ impl Parse for Data {
         Type: FromStr,
         Type::Err: std::error::Error + Send + 'static,
     {
-        // Parse data literal
-        let str_ = str::from_utf8(self)?;
-        str_.parse::<Type>().map_err(|e| err!(with: e, "failed to parse data"))
+        // Forward to &[u8] implementation
+        self.as_ref().parse()
     }
 }
 impl Parse for &[u8] {
