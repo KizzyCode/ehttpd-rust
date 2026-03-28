@@ -40,8 +40,11 @@ impl Handler {
             return false;
         };
 
-        // Handle the request accordingly
+        // Copy header info we need later on
         let is_head = request.method.as_ref().eq_ignore_ascii_case(b"HEAD");
+        let request_has_connection_close = request.has_connection_close();
+
+        // Handle the request accordingly
         let mut response = handler(request);
         if is_head {
             // Drop body for HEAD requests
@@ -53,8 +56,9 @@ impl Handler {
             return false;
         };
 
-        // Mark connection as to-be-rescheduled
-        !response.has_connection_close()
+        // Mark connection as to-be-rescheduled if it is not closed
+        let has_connection_close = request_has_connection_close || response.has_connection_close();
+        !has_connection_close
     }
 }
 

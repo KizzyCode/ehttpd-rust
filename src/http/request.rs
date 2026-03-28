@@ -183,4 +183,15 @@ impl<'a, const HEADER_SIZE_MAX: usize> Request<'a, HEADER_SIZE_MAX> {
         let body = Data::from(body);
         Ok(Some(body))
     }
+
+    /// Checks if the header has `Connection: Close` set
+    pub fn has_connection_close(&self) -> bool {
+        // Search for `Connection` header
+        for (key, value) in &self.fields {
+            if key.eq_ignore_ascii_case(b"Connection") {
+                return value.eq_ignore_ascii_case(b"close");
+            }
+        }
+        false
+    }
 }

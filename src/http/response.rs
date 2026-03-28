@@ -62,7 +62,7 @@ impl<const HEADER_SIZE_MAX: usize> Response<HEADER_SIZE_MAX> {
         // Search for `Connection` header
         for (key, value) in &self.fields {
             if key.eq_ignore_ascii_case(b"Connection") {
-                return value.eq_ignore_ascii_case(b"Close");
+                return value.eq_ignore_ascii_case(b"close");
             }
         }
         false
